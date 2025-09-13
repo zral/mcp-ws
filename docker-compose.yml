@@ -32,7 +32,7 @@ services:
       dockerfile: Dockerfile.agent
     container_name: travel-weather-agent
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - PYTHONUNBUFFERED=1
@@ -89,7 +89,7 @@ services:
       dockerfile: Dockerfile.agent-web
     container_name: travel-weather-web
     environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - MCP_SERVER_HOST=mcp-server

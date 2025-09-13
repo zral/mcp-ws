@@ -26,7 +26,7 @@ En intelligent agent som bruker MCP serveren til å:
 Du trenger API nøkler for:
 - **OpenWeatherMap**: For værdata → [openweathermap.org/api](https://openweathermap.org/api)
 - **Google Maps**: For reisedata → [console.cloud.google.com](https://console.cloud.google.com/)
-- **Anthropic**: For Claude AI → [console.anthropic.com](https://console.anthropic.com/)
+- **OpenAI**: For GPT-4 AI → [platform.openai.com](https://platform.openai.com/)
 
 Sett disse i `.env` filen (kopier fra `.env.example`).
 

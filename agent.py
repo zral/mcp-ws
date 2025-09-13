@@ -8,6 +8,8 @@ Agenten kan:
 - Svare på spørsmål om vær på en destinasjon
 - Gi reiseråd basert på værforhold
 - Planlegge komplette reiser med vær- og ruteinformasjon
+
+Bruker OpenAI GPT-4 for intelligent samtale og verktøybruk.
 """
 
 import asyncio
@@ -18,7 +20,7 @@ import sys
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
-from anthropic import Anthropic
+from openai import OpenAI
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -32,21 +34,21 @@ logger = logging.getLogger(__name__)
 class TravelWeatherAgent:
     """Agent som bruker MCP Travel Weather Server for reiseplanlegging."""
     
-    def __init__(self, anthropic_api_key: str = None, mcp_server_path: str = None):
+    def __init__(self, openai_api_key: str = None, mcp_server_path: str = None):
         """
         Initialiser agenten.
         
         Args:
-            anthropic_api_key: API nøkkel for Anthropic Claude
+            openai_api_key: API nøkkel for OpenAI
             mcp_server_path: Sti til MCP serveren
         """
-        self.anthropic_api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
+        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         self.mcp_server_path = mcp_server_path or "mcp_server.py"
         
-        if not self.anthropic_api_key:
-            raise ValueError("ANTHROPIC_API_KEY må være satt som miljøvariabel eller parameter")
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY må være satt som miljøvariabel eller parameter")
         
-        self.anthropic = Anthropic(api_key=self.anthropic_api_key)
+        self.openai = OpenAI(api_key=self.openai_api_key)
         self.session = None
         self.tools = []
         
@@ -122,19 +124,22 @@ class TravelWeatherAgent:
             logger.error(f"Feil ved kall til verktøy {tool_name}: {e}")
             return f"Feil ved kall til verktøy: {str(e)}"
     
-    def create_tools_for_claude(self) -> List[Dict[str, Any]]:
-        """Konverter MCP verktøy til Claude verktøy format."""
-        claude_tools = []
+    def create_tools_for_openai(self) -> List[Dict[str, Any]]:
+        """Konverter MCP verktøy til OpenAI verktøy format."""
+        openai_tools = []
         
         for tool in self.tools:
-            claude_tool = {
-                "name": tool.name,
-                "description": tool.description,
-                "input_schema": tool.inputSchema
+            openai_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.inputSchema
+                }
             }
-            claude_tools.append(claude_tool)
+            openai_tools.append(openai_tool)
         
-        return claude_tools
+        return openai_tools
     
     async def process_query(self, user_query: str) -> str:
         """
@@ -168,73 +173,62 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
             # Opprett meldinger
             messages = [
                 {
+                    "role": "system",
+                    "content": system_message
+                },
+                {
                     "role": "user",
                     "content": user_query
                 }
             ]
             
-            # Hent Claude verktøy
-            claude_tools = self.create_tools_for_claude()
+            # Hent OpenAI verktøy
+            openai_tools = self.create_tools_for_openai()
             
-            # Send forespørsel til Claude
-            response = self.anthropic.messages.create(
-                model="claude-3-5-sonnet-20241022",
+            # Send forespørsel til OpenAI
+            response = self.openai.chat.completions.create(
+                model="gpt-4o",
                 max_tokens=2000,
-                system=system_message,
                 messages=messages,
-                tools=claude_tools
+                tools=openai_tools,
+                tool_choice="auto"
             )
             
             # Prosesser svar
+            assistant_message = response.choices[0].message
             assistant_response = ""
             
-            for content in response.content:
-                if content.type == "text":
-                    assistant_response += content.text
-                elif content.type == "tool_use":
+            if assistant_message.content:
+                assistant_response += assistant_message.content
+            
+            # Håndter verktøykall
+            if assistant_message.tool_calls:
+                messages.append(assistant_message)
+                
+                for tool_call in assistant_message.tool_calls:
                     # Kall MCP verktøy
                     tool_result = await self.call_tool(
-                        content.name,
-                        content.input
+                        tool_call.function.name,
+                        json.loads(tool_call.function.arguments)
                     )
                     
-                    # Send verktøyresultat tilbake til Claude for endelig svar
-                    followup_messages = messages + [
-                        {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": content.id,
-                                    "name": content.name,
-                                    "input": content.input
-                                }
-                            ]
-                        },
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": content.id,
-                                    "content": tool_result
-                                }
-                            ]
-                        }
-                    ]
-                    
-                    # Få endelig svar fra Claude
-                    final_response = self.anthropic.messages.create(
-                        model="claude-3-5-sonnet-20241022",
-                        max_tokens=2000,
-                        system=system_message,
-                        messages=followup_messages,
-                        tools=claude_tools
-                    )
-                    
-                    for final_content in final_response.content:
-                        if final_content.type == "text":
-                            assistant_response += final_content.text
+                    # Legg til verktøyresultat i meldinger
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": tool_result
+                    })
+                
+                # Få endelig svar fra OpenAI
+                final_response = self.openai.chat.completions.create(
+                    model="gpt-4o",
+                    max_tokens=2000,
+                    messages=messages
+                )
+                
+                final_message = final_response.choices[0].message
+                if final_message.content:
+                    assistant_response = final_message.content
             
             return assistant_response
             
@@ -277,13 +271,13 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
 async def main():
     """Hovedfunksjon."""
     # Sjekk at nødvendige miljøvariabler er satt
-    required_env_vars = ["ANTHROPIC_API_KEY", "OPENWEATHER_API_KEY", "GOOGLE_API_KEY"]
+    required_env_vars = ["OPENAI_API_KEY", "OPENWEATHER_API_KEY", "GOOGLE_API_KEY"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     if missing_vars:
         print(f"❌ Følgende miljøvariabler må være satt: {', '.join(missing_vars)}")
         print("\nEksempel på oppsett:")
-        print("export ANTHROPIC_API_KEY='your-key-here'")
+        print("export OPENAI_API_KEY='your-key-here'")
         print("export OPENWEATHER_API_KEY='your-key-here'")
         print("export GOOGLE_API_KEY='your-key-here'")
         sys.exit(1)

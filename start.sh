@@ -14,7 +14,7 @@ if [ ! -f .env ]; then
     echo "📝 Vennligst rediger .env filen med dine API nøkler før du fortsetter."
     echo "   - OPENWEATHER_API_KEY: https://openweathermap.org/api"
     echo "   - GOOGLE_API_KEY: https://console.cloud.google.com/"
-    echo "   - ANTHROPIC_API_KEY: https://console.anthropic.com/"
+    echo "   - OPENAI_API_KEY: https://platform.openai.com/"
     exit 1
 fi
 
@@ -45,7 +45,7 @@ if ! check_api_key "GOOGLE_API_KEY"; then
     all_keys_ok=false
 fi
 
-if ! check_api_key "ANTHROPIC_API_KEY"; then
+if ! check_api_key "OPENAI_API_KEY"; then
     all_keys_ok=false
 fi
 
