@@ -1,8 +1,13 @@
 """
 MCP Travel Weather Server
 
-En Model Context Protocol (MCP) server som kombinerer reisedata fra Google 
-med værdata for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
+En Model Context Protocol (MCP) server som kombinerer reisedata med værdata 
+for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
+
+Bruker:
+- OpenWeatherMap for værdata
+- Nominatim (OpenStreetMap) for geocoding  
+- OpenRouteService for rute-beregning
 
 Serveren tilbyr følgende verktøy:
 - get_travel_routes: Hent ruter og reiseinformasjon mellom to destinasjoner
@@ -33,17 +38,155 @@ mcp = FastMCP("travel-weather-server")
 
 # API konstanter
 WEATHER_API_BASE = "https://api.openweathermap.org/data/2.5"
-GOOGLE_PLACES_API_BASE = "https://maps.googleapis.com/maps/api/place"
-GOOGLE_DIRECTIONS_API_BASE = "https://maps.googleapis.com/maps/api/directions"
+NOMINATIM_API_BASE = "https://nominatim.openstreetmap.org"
+OPENROUTE_API_BASE = "https://api.openrouteservice.org/v2"
 
 # Hent API nøkler fra miljøvariabler
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+OPENROUTE_API_KEY = os.getenv("OPENROUTE_API_KEY")  # Valgfri
 
 if not OPENWEATHER_API_KEY:
     logger.warning("OPENWEATHER_API_KEY ikke satt i miljøvariabler")
-if not GOOGLE_API_KEY:
-    logger.warning("GOOGLE_API_KEY ikke satt i miljøvariabler")
+
+# Hjelpefunksjoner for geocoding og ruting
+async def geocode_location(location: str) -> tuple[float, float] | None:
+    """
+    Hent koordinater for et sted ved hjelp av Nominatim (OpenStreetMap).
+    
+    Args:
+        location: Stedsnavn (f.eks. "Oslo, Norway")
+    
+    Returns:
+        Tuple med (latitude, longitude) eller None hvis ikke funnet
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"{NOMINATIM_API_BASE}/search"
+            params = {
+                "q": location,
+                "format": "json",
+                "limit": 1,
+                "addressdetails": 1
+            }
+            
+            headers = {
+                "User-Agent": "TravelWeatherAgent/1.0"  # Nominatim krever User-Agent
+            }
+            
+            response = await client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data:
+                result = data[0]
+                lat = float(result["lat"])
+                lon = float(result["lon"])
+                logger.info(f"Geocoded {location} to {lat}, {lon}")
+                return lat, lon
+            else:
+                logger.warning(f"Kunne ikke finne koordinater for {location}")
+                return None
+                
+    except Exception as e:
+        logger.error(f"Feil ved geocoding av {location}: {e}")
+        return None
+
+async def get_route_openroute(origin_coords: tuple[float, float], 
+                             destination_coords: tuple[float, float], 
+                             profile: str = "driving-car") -> dict | None:
+    """
+    Hent rute via OpenRouteService.
+    
+    Args:
+        origin_coords: Start koordinater (lat, lon)
+        destination_coords: Destinasjon koordinater (lat, lon)
+        profile: Profil ("driving-car", "foot-walking", "cycling-regular")
+    
+    Returns:
+        Rute data eller None
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            url = f"{OPENROUTE_API_BASE}/directions/{profile}"
+            
+            # OpenRouteService bruker longitude, latitude (motsatt av Nominatim)
+            coordinates = [
+                [origin_coords[1], origin_coords[0]],      # origin: [lon, lat]
+                [destination_coords[1], destination_coords[0]]  # destination: [lon, lat]
+            ]
+            
+            data = {
+                "coordinates": coordinates,
+                "format": "json",
+                "instructions": True,
+                "language": "no"
+            }
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            # Legg til API nøkkel hvis tilgjengelig
+            if OPENROUTE_API_KEY:
+                headers["Authorization"] = OPENROUTE_API_KEY
+            
+            response = await client.post(url, json=data, headers=headers)
+            response.raise_for_status()
+            
+            result = response.json()
+            return result
+            
+    except Exception as e:
+        logger.error(f"Feil ved henting av rute via OpenRouteService: {e}")
+        return None
+
+async def get_route_fallback(origin: str, destination: str) -> str:
+    """
+    Fallback rute informasjon når OpenRouteService ikke er tilgjengelig.
+    Bruker kun geocoding for å gi grunnleggende informasjon.
+    """
+    origin_coords = await geocode_location(origin)
+    dest_coords = await geocode_location(destination)
+    
+    if not origin_coords or not dest_coords:
+        return f"Kunne ikke finne koordinater for {origin} eller {destination}"
+    
+    # Beregn luftlinje avstand
+    from math import radians, cos, sin, asin, sqrt
+    
+    def haversine(lon1, lat1, lon2, lat2):
+        """Beregn avstand mellom to punkter på jorden."""
+        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+        dlon = lon2 - lon1 
+        dlat = lat2 - lat1 
+        a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+        c = 2 * asin(sqrt(a)) 
+        r = 6371  # Radius av jorden i km
+        return c * r
+    
+    distance_km = haversine(origin_coords[1], origin_coords[0], 
+                           dest_coords[1], dest_coords[0])
+    
+    # Estimat for reisetid (bil: 80 km/t, gange: 5 km/t)
+    driving_time_hours = distance_km / 80
+    walking_time_hours = distance_km / 5
+    
+    return f"""
+Reise fra {origin} til {destination}
+
+Koordinater:
+• Start: {origin_coords[0]:.4f}, {origin_coords[1]:.4f}
+• Destinasjon: {dest_coords[0]:.4f}, {dest_coords[1]:.4f}
+
+Luftlinje avstand: {distance_km:.1f} km
+
+Estimert reisetid:
+• Bil: {driving_time_hours:.1f} timer
+• Gåing: {walking_time_hours:.1f} timer
+
+Note: Dette er luftlinje beregninger. For nøyaktige ruter, 
+bruk dedikerte navigasjonsapper som Google Maps eller OpenStreetMap.
+"""
 
 
 @mcp.tool()
@@ -140,68 +283,77 @@ Vindstyrke: {day_data["wind_speed"]} m/s
 async def get_travel_routes(origin: str, destination: str, mode: str = "driving") -> str:
     """
     Hent ruter og reiseinformasjon mellom to destinasjoner.
+    Bruker Nominatim for geocoding og OpenRouteService for ruting.
     
     Args:
         origin: Startpunkt (f.eks. "Oslo, Norway")
         destination: Destinasjon (f.eks. "Bergen, Norway")
-        mode: Reisemåte ("driving", "walking", "bicycling", "transit")
+        mode: Reisemåte ("driving", "walking", "cycling")
     
     Returns:
         Formatert reiseinformasjon som tekst
     """
-    if not GOOGLE_API_KEY:
-        return "Feil: GOOGLE_API_KEY ikke konfigurert"
-    
     try:
-        async with httpx.AsyncClient() as client:
-            directions_url = f"{GOOGLE_DIRECTIONS_API_BASE}/json"
-            directions_params = {
-                "origin": origin,
-                "destination": destination,
-                "mode": mode,
-                "language": "no",
-                "key": GOOGLE_API_KEY
-            }
+        # Geocod begge steder
+        logger.info(f"Henter rute fra {origin} til {destination} ({mode})")
+        
+        origin_coords = await geocode_location(origin)
+        dest_coords = await geocode_location(destination)
+        
+        if not origin_coords or not dest_coords:
+            return await get_route_fallback(origin, destination)
+        
+        # Map mode til OpenRouteService profiler
+        profile_map = {
+            "driving": "driving-car",
+            "walking": "foot-walking", 
+            "cycling": "cycling-regular",
+            "bicycling": "cycling-regular"
+        }
+        
+        profile = profile_map.get(mode, "driving-car")
+        
+        # Prøv OpenRouteService først
+        route_data = await get_route_openroute(origin_coords, dest_coords, profile)
+        
+        if route_data and "routes" in route_data and route_data["routes"]:
+            route = route_data["routes"][0]
+            summary = route["summary"]
             
-            response = await client.get(directions_url, params=directions_params)
-            response.raise_for_status()
-            data = response.json()
+            # Konverter fra meter/sekunder til km/timer
+            distance_km = summary["distance"] / 1000
+            duration_hours = summary["duration"] / 3600
             
-            if data["status"] != "OK":
-                return f"Feil ved henting av ruter: {data.get('error_message', data['status'])}"
-            
-            if not data["routes"]:
-                return f"Ingen ruter funnet mellom {origin} og {destination}"
-            
-            route = data["routes"][0]
-            leg = route["legs"][0]
-            
-            # Format reiseinformasjon
             travel_info = f"""
 Reise fra {origin} til {destination}
 
 Reisemåte: {mode}
-Avstand: {leg["distance"]["text"]}
-Varighet: {leg["duration"]["text"]}
+Avstand: {distance_km:.1f} km
+Varighet: {duration_hours:.1f} timer
 
-Rute oversikt:
-{route["summary"]}
-
-Detaljerte instruksjoner:
+Rute informasjon:
 """
             
-            for i, step in enumerate(leg["steps"][:10], 1):  # Vis første 10 steg
-                instruction = step["html_instructions"].replace("<b>", "").replace("</b>", "").replace("<div>", " ").replace("</div>", "")
-                travel_info += f"\n{i}. {instruction} ({step['distance']['text']}, {step['duration']['text']})"
-            
-            if len(leg["steps"]) > 10:
-                travel_info += f"\n... og {len(leg['steps']) - 10} flere steg"
+            # Legg til detaljerte instruksjoner hvis tilgjengelig
+            if "segments" in route:
+                for i, segment in enumerate(route["segments"][:5], 1):  # Vis første 5 segmenter
+                    if "steps" in segment:
+                        for j, step in enumerate(segment["steps"][:3], 1):  # 3 steg per segment
+                            if "instruction" in step:
+                                instruction = step["instruction"]
+                                step_distance = step.get("distance", 0) / 1000
+                                travel_info += f"\n{i}.{j}. {instruction} ({step_distance:.1f} km)"
             
             return travel_info
+        
+        else:
+            # Fallback til grunnleggende informasjon
+            logger.warning("OpenRouteService ikke tilgjengelig, bruker fallback")
+            return await get_route_fallback(origin, destination)
             
     except Exception as e:
-        logger.error(f"Feil ved henting av reiseruter: {e}")
-        return f"Feil ved henting av reiseruter: {str(e)}"
+        logger.error(f"Feil ved henting av ruter: {e}")
+        return f"Feil ved henting av ruter: {str(e)}"
 
 
 @mcp.tool()

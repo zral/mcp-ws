@@ -9,7 +9,7 @@ Dette prosjektet inneholder en Model Context Protocol (MCP) server og agent som 
 ### MCP Server (`mcp_server.py`)
 Tilbyr følgende verktøy:
 - `get_weather_forecast`: Hent værprognose for en destinasjon (1-5 dager)
-- `get_travel_routes`: Hent ruter og reiseinformasjon mellom to destinasjoner
+- `get_travel_routes`: Hent ruter og reiseinformasjon mellom to destinasjoner (via Nominatim + OpenRouteService)
 - `plan_trip`: Kombiner reise- og værdata for optimal reiseplanlegging
 
 ### Agent (`agent.py`)
@@ -17,16 +17,40 @@ En intelligent agent som bruker MCP serveren til å:
 - Svare på spørsmål om vær på destinasjoner
 - Gi reiseråd basert på værforhold
 - Planlegge komplette reiser med vær- og ruteinformasjon
+- **Huske tidligere samtaler** med persistent SQLite database
+- Administrere flere samtalesesjoner
+
+## Funksjoner
+
+### 🌤️ Værprognose
+- Detaljert værprognose for enhver destinasjon
+- 1-5 dagers prognoser
+- Temperatur, nedbør, vind og luftfuktighet
+
+### 🗺️ Reiseruter  
+- Ruter og reiseinformasjon mellom destinasjoner
+- Reiseavstand og tidsestimater
+- Alternative transportmåter
+
+### 🧳 Reiseplanlegging
+- Kombinert vær- og reiseinformasjon
+- Smarte anbefalinger basert på værforhold
+- Optimal timing for reiser
+
+### 🧠 Persistent Hukommelse
+- Husker samtalehistorikk på tvers av sesjoner
+- SQLite database for lokal lagring
+- Administrering av flere samtalesesjoner
+- Se [docs/memory.md](docs/memory.md) for detaljer
 
 ## Forutsetninger
 
 ### API Nøkler
-## API Nøkler
 
 Du trenger API nøkler for:
 - **OpenWeatherMap**: For værdata → [openweathermap.org/api](https://openweathermap.org/api)
-- **Google Maps**: For reisedata → [console.cloud.google.com](https://console.cloud.google.com/)
 - **OpenAI**: For GPT-4 AI → [platform.openai.com](https://platform.openai.com/)
+- **OpenRouteService**: For ruter (valgfri) → [openrouteservice.org](https://openrouteservice.org/)
 
 Sett disse i `.env` filen (kopier fra `.env.example`).
 
@@ -34,8 +58,6 @@ Sett disse i `.env` filen (kopier fra `.env.example`).
 ```bash
 pip install -r requirements.txt
 ```
-
-## API Nøkler
 
 ## Docker Oppsett (Anbefalt)
 

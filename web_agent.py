@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -40,6 +40,10 @@ agent_instance = None
 
 class QueryRequest(BaseModel):
     query: str
+    session_id: Optional[str] = None
+
+class SessionRequest(BaseModel):
+    title: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str
@@ -54,6 +58,8 @@ async def startup_event():
         logger.info("Starter Travel Weather Agent...")
         agent_instance = TravelWeatherAgent()
         await agent_instance.connect_to_mcp_server()
+        # Start en default web sesjon
+        agent_instance.start_new_session("Web Interface Session")
         logger.info("Agent startet og tilkoblet MCP server")
     except Exception as e:
         logger.error(f"Feil ved oppstart av agent: {e}")
@@ -119,6 +125,72 @@ async def get_available_tools():
         })
     except Exception as e:
         logger.error(f"Feil ved henting av verktøy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/sessions")
+async def create_session(request: SessionRequest):
+    """Opprett ny samtalesesjon."""
+    if not agent_instance:
+        raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")
+    
+    try:
+        session_id = agent_instance.start_new_session(request.title)
+        return JSONResponse(content={
+            "success": True,
+            "session_id": session_id,
+            "title": request.title or "Uten tittel"
+        })
+    except Exception as e:
+        logger.error(f"Feil ved opprettelse av sesjon: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions")
+async def list_sessions():
+    """Hent liste over sesjoner."""
+    if not agent_instance:
+        raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")
+    
+    try:
+        sessions = agent_instance.list_sessions()
+        return JSONResponse(content={
+            "success": True,
+            "sessions": sessions
+        })
+    except Exception as e:
+        logger.error(f"Feil ved henting av sesjoner: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/sessions/{session_id}/history")
+async def get_session_history(session_id: str):
+    """Hent samtalehistorikk for en sesjon."""
+    if not agent_instance:
+        raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")
+    
+    try:
+        history = agent_instance.memory.get_conversation_history(session_id)
+        return JSONResponse(content={
+            "success": True,
+            "session_id": session_id,
+            "history": history
+        })
+    except Exception as e:
+        logger.error(f"Feil ved henting av samtalehistorikk: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/memory/stats")
+async def get_memory_stats():
+    """Hent hukommelse statistikk."""
+    if not agent_instance:
+        raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")
+    
+    try:
+        stats = agent_instance.get_memory_stats()
+        return JSONResponse(content={
+            "success": True,
+            "stats": stats
+        })
+    except Exception as e:
+        logger.error(f"Feil ved henting av statistikk: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/examples")

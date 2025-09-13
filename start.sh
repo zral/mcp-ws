@@ -13,7 +13,7 @@ if [ ! -f .env ]; then
     cp .env.example .env
     echo "📝 Vennligst rediger .env filen med dine API nøkler før du fortsetter."
     echo "   - OPENWEATHER_API_KEY: https://openweathermap.org/api"
-    echo "   - GOOGLE_API_KEY: https://console.cloud.google.com/"
+    echo "   - OPENROUTE_API_KEY: https://openrouteservice.org/ (valgfri)"
     echo "   - OPENAI_API_KEY: https://platform.openai.com/"
     exit 1
 fi
@@ -41,13 +41,11 @@ if ! check_api_key "OPENWEATHER_API_KEY"; then
     all_keys_ok=false
 fi
 
-if ! check_api_key "GOOGLE_API_KEY"; then
-    all_keys_ok=false
-fi
-
 if ! check_api_key "OPENAI_API_KEY"; then
     all_keys_ok=false
 fi
+
+# OPENROUTE_API_KEY er valgfri
 
 if [ "$all_keys_ok" = false ]; then
     echo "❌ En eller flere API nøkler mangler. Vennligst oppdater .env filen."

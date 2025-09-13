@@ -17,12 +17,15 @@ import json
 import logging
 import os
 import sys
+import uuid
 from typing import List, Dict, Any
 from datetime import datetime, timedelta
 
 from openai import OpenAI
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
+from conversation_memory import ConversationMemory
 
 # Konfigurer logging
 logging.basicConfig(
@@ -34,13 +37,15 @@ logger = logging.getLogger(__name__)
 class TravelWeatherAgent:
     """Agent som bruker MCP Travel Weather Server for reiseplanlegging."""
     
-    def __init__(self, openai_api_key: str = None, mcp_server_path: str = None):
+    def __init__(self, openai_api_key: str = None, mcp_server_path: str = None, 
+                 memory_db_path: str = "data/conversations.db"):
         """
         Initialiser agenten.
         
         Args:
             openai_api_key: API nøkkel for OpenAI
             mcp_server_path: Sti til MCP serveren
+            memory_db_path: Sti til hukommelse database
         """
         self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         self.mcp_server_path = mcp_server_path or "mcp_server.py"
@@ -50,6 +55,31 @@ class TravelWeatherAgent:
         
         self.openai = OpenAI(api_key=self.openai_api_key)
         self.session = None
+        self.tools = []
+        
+        # Initialiser hukommelse
+        self.memory = ConversationMemory(memory_db_path)
+        self.current_session_id = None
+        self.user_id = "default"  # Kan utvides til å støtte flere brukere
+        
+    def start_new_session(self, title: str = None) -> str:
+        """Start en ny samtalesesjon."""
+        self.current_session_id = self.memory.create_session(self.user_id, title)
+        logger.info(f"Ny sesjon startet: {self.current_session_id}")
+        return self.current_session_id
+    
+    def load_session(self, session_id: str):
+        """Last inn en eksisterende sesjon."""
+        self.current_session_id = session_id
+        logger.info(f"Lastet sesjon: {session_id}")
+    
+    def list_sessions(self) -> List[Dict[str, Any]]:
+        """Hent liste over tilgjengelige sesjoner."""
+        return self.memory.get_sessions(self.user_id)
+    
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Hent statistikk om hukommelse."""
+        return self.memory.get_database_stats()
         self.tools = []
         
     async def connect_to_mcp_server(self):
@@ -143,7 +173,7 @@ class TravelWeatherAgent:
     
     async def process_query(self, user_query: str) -> str:
         """
-        Prosesser en brukerforespørsel.
+        Prosesser en brukerforespørsel med hukommelse.
         
         Args:
             user_query: Brukerens spørsmål eller forespørsel
@@ -154,7 +184,19 @@ class TravelWeatherAgent:
         if not self.session:
             raise RuntimeError("Ikke tilkoblet MCP server")
         
+        # Sørg for at vi har en aktiv sesjon
+        if not self.current_session_id:
+            self.start_new_session(f"Samtale {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        
         try:
+            # Lagre brukerens melding
+            self.memory.add_message(
+                session_id=self.current_session_id,
+                role="user",
+                content=user_query,
+                user_id=self.user_id
+            )
+            
             # Opprett systemmelding
             system_message = """Du er en reiseplanleggingsassistent som hjelper brukere med å planlegge reiser basert på værforhold.
 
@@ -168,19 +210,32 @@ Når brukere spør om:
 - Reiseruter: Bruk get_travel_routes  
 - Komplette reiseplaner: Bruk plan_trip
 
+Du husker tidligere samtaler i denne sesjonen og kan referere til dem.
 Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
 
-            # Opprett meldinger
+            # Hent samtalehistorikk for kontekst
+            conversation_history = self.memory.get_recent_context(
+                session_id=self.current_session_id,
+                context_window=10,  # Siste 10 meldinger
+                user_id=self.user_id
+            )
+            
+            # Bygg meldinger med historie
             messages = [
                 {
                     "role": "system",
                     "content": system_message
-                },
-                {
-                    "role": "user",
-                    "content": user_query
                 }
             ]
+            
+            # Legg til samtalehistorikk (ekskludert den nye brukerforespørselen)
+            messages.extend(conversation_history[:-1] if conversation_history else [])
+            
+            # Legg til ny brukerforespørsel
+            messages.append({
+                "role": "user",
+                "content": user_query
+            })
             
             # Hent OpenAI verktøy
             openai_tools = self.create_tools_for_openai()
@@ -203,13 +258,55 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
             
             # Håndter verktøykall
             if assistant_message.tool_calls:
-                messages.append(assistant_message)
+                # Lagre assistent melding med verktøykall
+                tool_calls_data = []
+                for tool_call in assistant_message.tool_calls:
+                    tool_calls_data.append({
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments
+                        }
+                    })
+                
+                self.memory.add_message(
+                    session_id=self.current_session_id,
+                    role="assistant",
+                    content=assistant_message.content or "",
+                    tool_calls=tool_calls_data,
+                    user_id=self.user_id
+                )
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": assistant_message.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        } for tc in assistant_message.tool_calls
+                    ]
+                })
                 
                 for tool_call in assistant_message.tool_calls:
                     # Kall MCP verktøy
                     tool_result = await self.call_tool(
                         tool_call.function.name,
                         json.loads(tool_call.function.arguments)
+                    )
+                    
+                    # Lagre verktøyresultat
+                    self.memory.add_message(
+                        session_id=self.current_session_id,
+                        role="tool",
+                        content=tool_result,
+                        metadata={"tool_call_id": tool_call.id, "tool_name": tool_call.function.name},
+                        user_id=self.user_id
                     )
                     
                     # Legg til verktøyresultat i meldinger
@@ -230,6 +327,14 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
                 if final_message.content:
                     assistant_response = final_message.content
             
+            # Lagre endelig assistent svar
+            self.memory.add_message(
+                session_id=self.current_session_id,
+                role="assistant",
+                content=assistant_response,
+                user_id=self.user_id
+            )
+            
             return assistant_response
             
         except Exception as e:
@@ -237,15 +342,23 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
             return f"Beklager, det oppstod en feil: {str(e)}"
     
     async def interactive_mode(self):
-        """Kjør agenten i interaktiv modus."""
+        """Kjør agenten i interaktiv modus med hukommelse."""
         print("🌍 Travel Weather Agent - Reiseplanleggingsassistent")
         print("=" * 60)
         print("Spør meg om:")
         print("• Værprognose for en destinasjon")
         print("• Reiseruter mellom to steder")
         print("• Komplette reiseplaner med vær og ruter")
-        print("\nSkriv 'quit' for å avslutte")
+        print("\nKommandoer:")
+        print("• 'ny sesjon' - Start ny samtale")
+        print("• 'sesjoner' - Vis tidligere samtaler")
+        print("• 'stats' - Vis hukommelse statistikk")
+        print("• 'quit' - Avslutt")
         print("=" * 60)
+        
+        # Start ny sesjon automatisk
+        self.start_new_session(f"Interaktiv sesjon {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"✅ Startet ny sesjon: {self.current_session_id}")
         
         while True:
             try:
@@ -258,6 +371,31 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
                 if not user_input:
                     continue
                 
+                # Håndter spesielle kommandoer
+                if user_input.lower() in ['ny sesjon', 'new session']:
+                    title = input("📝 Tittel på ny sesjon (valgfri): ").strip()
+                    self.start_new_session(title if title else None)
+                    print(f"✅ Ny sesjon startet: {self.current_session_id}")
+                    continue
+                
+                if user_input.lower() in ['sesjoner', 'sessions']:
+                    sessions = self.list_sessions()
+                    print(f"\n📋 Dine sesjoner ({len(sessions)} totalt):")
+                    for session in sessions[:10]:  # Vis de 10 siste
+                        print(f"  • {session['session_id']}: {session['title']} "
+                              f"({session['message_count']} meldinger, "
+                              f"sist aktiv: {session['last_activity']})")
+                    continue
+                
+                if user_input.lower() in ['stats', 'statistikk']:
+                    stats = self.get_memory_stats()
+                    print(f"\n📊 Hukommelse statistikk:")
+                    print(f"  • Totalt meldinger: {stats['total_messages']}")
+                    print(f"  • Totalt sesjoner: {stats['total_sessions']}")
+                    print(f"  • Unike brukere: {stats['unique_users']}")
+                    print(f"  • Database størrelse: {stats['database_size_mb']} MB")
+                    continue
+                
                 print("\n🤔 Tenker...")
                 response = await self.process_query(user_input)
                 print(f"\n🤖 {response}")
@@ -267,11 +405,12 @@ Svar alltid på norsk og gi praktiske råd basert på informasjonen du får."""
                 break
             except Exception as e:
                 print(f"\n❌ Feil: {e}")
+                logger.error(f"Feil i interaktiv modus: {e}")
 
 async def main():
     """Hovedfunksjon."""
     # Sjekk at nødvendige miljøvariabler er satt
-    required_env_vars = ["OPENAI_API_KEY", "OPENWEATHER_API_KEY", "GOOGLE_API_KEY"]
+    required_env_vars = ["OPENAI_API_KEY", "OPENWEATHER_API_KEY"]
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     
     if missing_vars:
@@ -279,7 +418,7 @@ async def main():
         print("\nEksempel på oppsett:")
         print("export OPENAI_API_KEY='your-key-here'")
         print("export OPENWEATHER_API_KEY='your-key-here'")
-        print("export GOOGLE_API_KEY='your-key-here'")
+        print("export OPENROUTE_API_KEY='your-key-here'  # Valgfri")
         sys.exit(1)
     
     # Opprett og kjør agent
