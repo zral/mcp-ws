@@ -1,18 +1,43 @@
-# Docker Deployment Guide
+# Docker Deployment Guide - Mikroservice Arkitektur
 
 ## Oversikt
 
-Travel Weather MCP systemet er designet for å kjøre optimalt i Docker containere. Denne guiden dekker alt du trenger for å sette opp systemet med Docker Compose.
+**Ingrids Reisetjenester** er designet som en moderne mikroservice-arkitektur med tre separate HTTP-baserte tjenester. Denne guiden dekker alt du trenger for å sette opp systemet med Docker Compose.
 
-## Arkitektur
+## 🏗️ Mikroservice Arkitektur
 
-Systemet består av tre hovedcontainere:
+Systemet består av tre isolerte mikrotjenester:
 
-1. **travel-weather-mcp-server**: MCP server med værdata og reiseverktøy
-2. **travel-weather-agent**: CLI agent for kommandolinje bruk  
-3. **travel-weather-web**: Web interface med REST API
+### Tjenestearkitektur
+```
+┌─────────────────┐    HTTP     ┌─────────────────┐    HTTP     ┌─────────────────┐
+│   Web Service   │ ─────────► │  Agent Service  │ ─────────► │  MCP Server     │
+│   (Port 8080)   │            │   (Port 8001)   │            │   (Port 8000)   │
+│ services/web/   │            │ services/agent/ │            │services/mcp-    │
+│                 │            │                 │            │    server/      │
+└─────────────────┘            └─────────────────┘            └─────────────────┘
+```
 
-Alle containere deler persistente data via Docker volumes og kommuniserer via interne nettverk.
+### 1. MCP Server (`travel-weather-mcp-server`)
+**Services kataloger**: `services/mcp-server/`
+- **Port**: 8000
+- **Ansvar**: Pure verktøy-API for værdata og reiseplanlegging
+- **API Endpoints**: `/weather`, `/routes`, `/plan`, `/health`
+- **Eksterne API-er**: OpenWeatherMap, Nominatim, OpenRouteService
+
+### 2. Agent Service (`travel-weather-agent`)  
+**Services kataloger**: `services/agent/`
+- **Port**: 8001
+- **Ansvar**: AI-orkestrering med OpenAI GPT-4o
+- **API Endpoints**: `/query`, `/health`
+- **Funksjoner**: Function calling, samtalehistorikk, HTTP client til MCP
+
+### 3. Web Service (`travel-weather-web`)
+**Services kataloger**: `services/web/`
+- **Port**: 8080
+- **Ansvar**: Frontend web-grensesnitt 
+- **API Endpoints**: `/`, `/query`, `/examples`, `/health`
+- **Funksjoner**: HTML UI, HTTP client til Agent service
 
 ## Forutsetninger
 
@@ -23,14 +48,14 @@ Alle containere deler persistente data via Docker volumes og kommuniserer via in
   - OpenWeatherMap (kreves)
   - OpenRouteService (valgfri)
 
-## Rask Start
+## 🚀 Rask Start
 
 ### 1. Forberedelse
 
 ```bash
 # Klon prosjektet
 git clone <repository-url>
-cd travel-weather-mcp
+cd agent
 
 # Kopier miljøvariabler
 cp .env.example .env
@@ -48,6 +73,21 @@ nano .env
 # ELLER manuelt:
 docker-compose build
 docker-compose up -d
+```
+
+### 3. Verifiser deployment
+
+```bash
+# Sjekk container status
+docker-compose ps
+
+# Sjekk helsestatuser
+curl http://localhost:8000/health  # MCP Server
+curl http://localhost:8001/health  # Agent Service  
+curl http://localhost:8080/health  # Web Service
+
+# Tilgang til hovedside
+open http://localhost:8080
 ```
 
 ### 3. Verifiser deployment

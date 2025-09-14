@@ -13,10 +13,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Kopier agent og server kode (agent trenger tilgang til server)
 # Kopier agent kode og avhengigheter
-COPY simple_agent.py .
-COPY mcp_server.py .
+COPY microservice_agent.py .
 COPY conversation_memory.py .
 
 # Opprett ikke-root bruker for sikkerhet og data directory
@@ -31,7 +29,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Helse sjekk kommando
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import simple_agent; print('Agent OK')"
+    CMD python -c "import microservice_agent; print('Agent OK')"
 
-# Standard kommando for å kjøre agent
-CMD ["python", "simple_agent.py"]
+# Standard kommando for å kjøre agent API
+CMD ["python", "microservice_agent.py", "--api"]

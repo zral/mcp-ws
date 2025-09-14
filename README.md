@@ -1,4 +1,4 @@
-# Travel Weather MCP Server og Agent
+# Ingrids Reisetjenester - Mikroservice Arkitektur
 
 ## 📚 Dokumentasjon
 
@@ -8,46 +8,92 @@
 - **[MCP Arkitektur & Template Guide](./docs/mcp-architecture-template.md)** - Detaljert arkitektur og mal for å lage egne agenter
 - **[API Dokumentasjon](./docs/mcp-api-documentation.md)** - API referanse og verktøybeskrivelser  
 - **[Integrasjonsguide](./docs/mcp-integration-guide.md)** - Praktiske eksempler
+- **[Docker Deployment Guide](./docs/docker-deployment.md)** - Deployment og drift
 - **[OpenAPI Schema](./docs/mcp-openapi-schema.md)** - Teknisk spesifikasjon
 
 ## Oversikt
 
-Dette prosjektet inneholder en Model Context Protocol (MCP) server og intelligent agent som kombinerer reisedata med værdata for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
+**Ingrids Reisetjenester** er en intelligent reiseplanlegging plattform bygget med mikroservice-arkitektur. Systemet kombinerer reisedata med værdata for å gi personlige reiseanbefalinger basert på værutsikter på destinasjonen.
 
-**Siste oppdatering**: Systemet har blitt refaktorert for optimal Docker deployment med direkte funksjonalitet i stedet for subprocess MCP kommunikasjon.
+**Arkitektur**: Systemet er bygget som tre separate HTTP-baserte mikrotjenester som kommuniserer via REST API.
 
-## Komponenter
+## 🏗️ Mikroservice Arkitektur
 
-### MCP Server (`mcp_server.py`)
-Tilbyr følgende verktøy:
-- `get_weather_forecast`: Hent værprognose for en destinasjon (1-5 dager)
-- `get_travel_routes`: Hent ruter og reiseinformasjon mellom to destinasjoner
-- `plan_trip`: Kombiner reise- og værdata for optimal reiseplanlegging
+### Tjenestearkitektur
+```
+┌─────────────────┐    HTTP     ┌─────────────────┐    HTTP     ┌─────────────────┐
+│   Web Service   │ ─────────► │  Agent Service  │ ─────────► │  MCP Server     │
+│   (Port 8080)   │            │   (Port 8001)   │            │   (Port 8000)   │
+│                 │            │                 │            │                 │
+│ • Frontend UI   │            │ • AI Logic      │            │ • Tools/APIs    │
+│ • User Interface│            │ • OpenAI GPT-4o │            │ • Weather Data  │
+│ • Examples      │            │ • Conversation  │            │ • Route Calc    │
+│ • Health Checks │            │ • Memory        │            │ • Trip Planning │
+└─────────────────┘            └─────────────────┘            └─────────────────┘
+```
 
-**Gratis API-er som brukes:**
+### 1. MCP Server (`services/mcp-server/`)
+**HTTP API for reiseverktøy** - Port 8000
+- `POST /weather` - Værprognose for destinasjoner  
+- `POST /routes` - Ruteberegning mellom steder
+- `POST /plan` - Komplett reiseplanlegging
+- `GET /health` - Helsesjekk
+
+**API-er som brukes:**
 - OpenWeatherMap for værdata
 - Nominatim (OpenStreetMap) for geocoding  
 - OpenRouteService for rute-beregning (med fallback algoritmer)
 
-### CLI Agent (`simple_agent.py`)
-En kommandolinje agent som:
-- Tar spørsmål som kommandolinjeargument eller interaktiv modus
-- Bruker OpenAI GPT-4o for intelligent respons
-- Har tilgang til alle værdata og reisedata verktøy
-- **Huker tidligere samtaler** med persistent SQLite database
-- Bruker direkte MCP funksjonalitet uten subprocess kommunikasjon
+### 2. Agent Service (`services/agent/`)
+**AI-orkestrering med OpenAI** - Port 8001
+- OpenAI GPT-4o for intelligent respons
+- HTTP klient for MCP server kommunikasjon
+- Persistent SQLite database for samtalehistorikk
+- Function calling for verktøybruk
+- `POST /query` - Prosesser brukerforespørsler
+- `GET /health` - Helsesjekk med agent status
 
-### Web Interface (`web_agent.py`)
-En web-basert grensesnitt som:
-- Tilbyr HTTP REST API på port 8080
-- HTML interface for enkel bruk
-- Samme funksjonalitet som CLI agent
-- Optimalisert for Docker deployment
+### 3. Web Service (`services/web/`)  
+**Frontend web-grensesnitt** - Port 8080
+- HTML/JavaScript grensesnitt
+- HTTP klient for agent kommunikasjon
+- Eksempel spørsmål og interaktiv chat
+- Real-time helsestatusindikator
+- `GET /` - Hovedside
+- `POST /query` - Proxy til agent service
+- `GET /examples` - Foreslåtte spørsmål
+- `GET /health` - Helsesjekk
 
-### Simplified Agent (`simple_agent.py`)
-En forenklet agent klasse som:
-- Bruker MCP server funksjonalitet direkte (ingen subprocess)
-- Fungerer optimalt i Docker containere
+## 🚀 Kom i gang
+
+### Docker Deployment (Anbefalt)
+```bash
+# Klon repository
+git clone <repository-url>
+cd agent
+
+# Sett opp miljøvariabler
+cp .env.example .env
+# Rediger .env med dine API nøkler
+
+# Start alle tjenester
+docker-compose up -d
+
+# Sjekk status
+docker-compose ps
+```
+
+**Tilgang:**
+- **Hovedside**: http://localhost:8080
+- **Agent API**: http://localhost:8001  
+- **MCP API**: http://localhost:8000
+
+### Miljøvariabler
+```bash
+OPENAI_API_KEY=your_openai_api_key_here
+OPENWEATHER_API_KEY=your_openweather_api_key_here  
+OPENROUTE_API_KEY=your_openroute_api_key_here # Valgfri
+```
 - Deles av både CLI og web interface
 
 ## Funksjoner

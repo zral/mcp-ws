@@ -1,53 +1,85 @@
-# Travel Weather MCP System - Dokumentasjonsindeks
+# Ingrids Reisetjenester - Dokumentasjonsindeks
 
 ## 📖 Komplett dokumentasjonsoversikt
 
-Dette systemet gir deg alt du trenger for å forstå, integrere og utvide Travel Weather MCP agenten.
+Denne dokumentasjonen gir deg alt du trenger for å forstå, deploye og utvide **Ingrids Reisetjenester** mikroservice-arkitektur.
 
 ### 🎯 Kom i gang raskt
 
-1. **[MCP API Dokumentasjon](./mcp-api-documentation.md)** - Start her for grunnleggende forståelse
-2. **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler på hvordan bruke systemet
-3. **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk API-spesifikasjon
+1. **[Mikroservice Arkitektur Guide](./microservice-architecture.md)** - **Start her!** Komplett arkitekturovesikt
+2. **[Docker Deployment Guide](./docker-deployment.md)** - Deploy systemet lokalt eller i produksjon  
+3. **[API Dokumentasjon](./mcp-api-documentation.md)** - HTTP API referanse for alle tjenester
+4. **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler på bruk
 
-### 🏗️ Bygg egne agenter
+### 🏗️ For utviklere
 
-4. **[MCP Arkitektur & Template Guide](./mcp-architecture-template.md)** - **Hovedressurs for utviklere!**
-   - Detaljert forklaring av systemarkitektur
-   - Template for å lage nye MCP-baserte agenter
-   - Best practices og design patterns
-   - Sammenligning med tradisjonelle tilnærminger
+5. **[MCP Arkitektur & Template Guide](./mcp-architecture-template.md)** - Bygg egne MCP-baserte agenter
+6. **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk API spesifikasjon
 
 ## 📋 Dokumentasjonsstruktur
 
 ```
 docs/
-├── README.md                     # Denne filen - dokumentasjonsindeks
-├── mcp-api-documentation.md      # API referanse og verktøybeskrivelser
-├── mcp-architecture-template.md  # Arkitektur og utviklermal ⭐
-├── mcp-openapi-schema.md         # OpenAPI 3.0 teknisk spesifikasjon
-└── mcp-integration-guide.md      # Integrasjonseksempler og guides
+├── README.md                        # Denne filen - dokumentasjonsindeks
+├── microservice-architecture.md     # ⭐ Hovedarkitekturguide  
+├── docker-deployment.md            # Deployment og drift
+├── mcp-api-documentation.md         # HTTP API referanse
+├── mcp-integration-guide.md         # Integrasjonseksempler
+├── mcp-architecture-template.md     # MCP utviklermal
+├── mcp-openapi-schema.md           # OpenAPI 3.0 spesifikasjon
+├── memory.md                       # Samtalehukommelse
+└── free-apis.md                    # Eksterne API-er som brukes
 ```
 
 ## 🚀 Bruksscenarier
 
 ### For utviklere som vil:
 
-- **Forstå systemet**: Start med [API Dokumentasjon](./mcp-api-documentation.md)
-- **Integrere i eksisterende system**: Se [Integrasjonsguide](./mcp-integration-guide.md)
-- **Bygge lignende agenter**: Bruk [Arkitektur & Template Guide](./mcp-architecture-template.md)
-- **Få tekniske detaljer**: Studer [OpenAPI Schema](./mcp-openapi-schema.md)
+- **Deploy systemet**: [Docker Deployment Guide](./docker-deployment.md)
+- **Forstå arkitekturen**: [Mikroservice Arkitektur Guide](./microservice-architecture.md)  
+- **Bruke API-ene**: [API Dokumentasjon](./mcp-api-documentation.md)
+- **Integrere i eksisterende system**: [Integrasjonsguide](./mcp-integration-guide.md)
+- **Bygge lignende agenter**: [MCP Template Guide](./mcp-architecture-template.md)
 
 ### For product managers/arkitekter:
 
-- **Evaluere løsningen**: [MCP API Dokumentasjon](./mcp-api-documentation.md) + [Arkitektur Guide](./mcp-architecture-template.md)
-- **Planlegge utvidelser**: [Arkitektur & Template Guide](./mcp-architecture-template.md)
+- **Evaluere løsningen**: [Mikroservice Arkitektur](./microservice-architecture.md) + [API Dokumentasjon](./mcp-api-documentation.md)
+- **Planlegge deployment**: [Docker Deployment Guide](./docker-deployment.md)
 - **Forstå muligheter**: [Integrasjonsguide](./mcp-integration-guide.md)
+
+## 🏗️ Systemarkitektur (Sammendrag)
+
+**Ingrids Reisetjenester** består av tre HTTP-baserte mikrotjenester:
+
+```
+┌─────────────────┐    HTTP     ┌─────────────────┐    HTTP     ┌─────────────────┐
+│   Web Service   │ ─────────► │  Agent Service  │ ─────────► │  MCP Server     │
+│   (Port 8080)   │            │   (Port 8001)   │            │   (Port 8000)   │
+│                 │            │                 │            │                 │
+│ • Frontend UI   │            │ • OpenAI GPT-4o │            │ • Weather APIs  │
+│ • User Interface│            │ • Conversation  │            │ • Route Calc    │
+│ • Examples      │            │ • Memory        │            │ • Trip Planning │
+└─────────────────┘            └─────────────────┘            └─────────────────┘
+```
+
+### Tjenester:
+
+- **Web Service** (`services/web/`): Frontend og brukergrensesnitt
+- **Agent Service** (`services/agent/`): AI-orkestrering med OpenAI GPT-4o  
+- **MCP Server** (`services/mcp-server/`): Verktøy-API for vær og reisedata
 
 ## 💡 Key Concepts
 
-### Model Context Protocol (MCP)
+### Mikroservice Arkitektur
+- **Formål**: Modulær, skalerbar og vedlikeholdbar tjenesteoppdeling
+- **Kommunikasjon**: HTTP REST API-er mellom tjenester
+- **Deployment**: Docker Compose med isolerte containere
+- **Skalering**: Hver tjeneste kan skaleres uavhengig
+
+### Model Context Protocol (MCP)  
 - **Formål**: Standardisert måte å koble AI-modeller med verktøy/tjenester
+- **Implementasjon**: HTTP API wrapper rundt MCP funksjoner
+- **Fordeler**: Gjenbrukbare verktøy på tvers av AI-agenter
 - **Fordeler**: Modulær, skalerbar, testbar arkitektur
 - **Implementasjon**: Rene async Python-funksjoner
 

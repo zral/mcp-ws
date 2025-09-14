@@ -1,53 +1,272 @@
-# MCP Travel Weather Server API Documentation
+# API Dokumentasjon - Ingrids Reisetjenester
 
 ## Oversikt
 
-Travel Weather MCP Server er en Model Context Protocol (MCP) server som tilbyr værdata og reiseplanlegging. Serveren eksponerer tre hovedfunksjoner som kan brukes av AI-agenter for å hjelpe brukere med reiseplanlegging basert på værforhold.
+**Ingrids Reisetjenester** tilbyr tre HTTP-baserte API-er for komplett reiseplanlegging med værdata. Systemet er bygget som mikrotjenester med klare ansvarsområder og REST API-er.
 
 ### 📚 Relatert Dokumentasjon
 
-- **[MCP Arkitektur & Template Guide](./mcp-architecture-template.md)** - Detaljert forklaring av systemarkitektur og mal for å lage nye MCP-baserte agenter
-- **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk spesifikasjon av API-endepunkter
-- **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler på hvordan integrere systemet
+- **[Mikroservice Arkitektur Guide](./microservice-architecture.md)** - Detaljert arkitekturguide  
+- **[Docker Deployment Guide](./docker-deployment.md)** - Deployment og drift
+- **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk API spesifikasjon
+- **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler
 
-## Server Informasjon
+## 🏗️ API Oversikt
 
-- **Navn**: Travel Weather MCP Server
-- **Versjon**: 1.0.0
-- **Protokoll**: Model Context Protocol (MCP)
-- **Port**: 8000 (når kjørt standalone)
-- **Environment**: Docker container eller direkte Python import
+### Tjenestene
 
-## Systemarkitektur
+| Tjeneste | Port | Ansvar | Dokumentasjon |
+|----------|------|---------|---------------|
+| **Web Service** | 8080 | Frontend UI & Proxy | [Web API](#web-service-api) |
+| **Agent Service** | 8001 | AI Logic & Orkestrering | [Agent API](#agent-service-api) |  
+| **MCP Server** | 8000 | Verktøy & Eksterne API-er | [MCP API](#mcp-server-api) |
 
-Travel Weather systemet består av flere komponenter som sammen leverer en komplett AI-drevet reiseplanleggingsløsning:
+### Base URLs (Docker deployment)
+```
+Web Service:   http://localhost:8080
+Agent Service: http://localhost:8001  
+MCP Server:    http://localhost:8000
+```
 
-### Hovedkomponenter
+## 🌐 Web Service API
 
-1. **MCP Server** (`mcp_server.py`) - Implementerer rene verktøyfunksjoner
-2. **AI Agent** (`simple_agent.py`) - Kobler OpenAI GPT med MCP verktøy
-3. **REST API** (`web_agent.py`) - HTTP grensesnitt for web/mobile klienter
-4. **Web Interface** - Browser-basert brukergrensesnitt på port 8080
+**Port 8080** - Frontend og brukergrensesnitt
 
-### Deployment
+### GET /
+Hovedside med web-grensesnitt
 
-- **Docker Compose**: Multi-container oppsett med web, agent og MCP server
-- **Persistent Storage**: SQLite database for samtalehukommelse
-- **Environment Variables**: Sikker konfigurasjon av API-nøkler
+**Respons**: HTML side for Ingrids Reisetjenester
 
-> **💡 For detaljert arkitekturinformasjon og mal for å lage egne agenter, se [MCP Arkitektur & Template Guide](./mcp-architecture-template.md)**
+### POST /query
+Proxy brukerforespørsel til Agent Service
 
-## Tilgjengelige Verktøy (Tools)
+**Request Body**:
+```json
+{
+  "query": "Hva er været i Oslo denne uka?"
+}
+```
 
-### 1. get_weather_forecast
+**Response**:
+```json
+{
+  "success": true,
+  "response": "I Oslo denne uka vil det være...",
+  "timestamp": "2025-09-14T21:45:00.000Z",
+  "agent_connected": true
+}
+```
 
-Henter værprognose for en spesifisert lokasjon.
+### GET /examples  
+Hent foreslåtte eksempel spørsmål
 
-#### Parametere
+**Response**:
+```json
+{
+  "examples": [
+    {
+      "title": "🌤️ Værprognose",
+      "description": "Få detaljert værmelding for din destinasjon", 
+      "query": "Hva er været i Oslo denne uka?"
+    }
+  ]
+}
+```
 
-| Parameter | Type | Påkrevd | Beskrivelse | Standard |
-|-----------|------|---------|-------------|----------|
-| `location` | string | Ja | Navn på by eller lokasjon (f.eks. "Oslo", "Bergen") | - |
+### GET /health
+Web service helsesjekk
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "timestamp": "2025-09-14T21:45:00.000Z",
+  "agent_connected": true
+}
+```
+
+## 🤖 Agent Service API
+
+**Port 8001** - AI-orkestrering med OpenAI GPT-4o
+
+### POST /query
+Prosesser brukerforespørsel med AI
+
+**Request Body**:
+```json
+{
+  "query": "Planlegg en tur fra Oslo til Bergen med værinfo"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "response": "Basert på værprognosen anbefaler jeg...",
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+**Feilrespons**:
+```json
+{
+  "success": false,
+  "error": "Beskrivelse av feil",
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+### GET /health
+Agent service helsesjekk
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "service": "Ingrid Agent",
+  "timestamp": "2025-09-14T21:45:00.000Z",
+  "agent_ready": true
+}
+```
+
+## 🛠️ MCP Server API
+
+**Port 8000** - Verktøy og eksterne API integrasjoner
+
+### POST /weather
+Hent værprognose for destinasjon
+
+**Request Body**:
+```json
+{
+  "location": "Oslo"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "location": "Oslo, Norge",
+    "coordinates": {"lat": 59.9127, "lon": 10.7461},
+    "current": {
+      "temperature": 15.5,
+      "feels_like": 14.2,
+      "humidity": 78,
+      "description": "delvis skyet",
+      "wind_speed": 3.2,
+      "timestamp": "2025-09-14T21:45:00.000Z"
+    },
+    "forecast": [...]
+  },
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+### POST /routes
+Beregn rute mellom destinasjoner
+
+**Request Body**:
+```json
+{
+  "origin": "Oslo",
+  "destination": "Bergen", 
+  "mode": "driving"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "origin": {"name": "Oslo", "coordinates": {...}},
+    "destination": {"name": "Bergen", "coordinates": {...}},
+    "mode": "driving",
+    "route": {
+      "distance_km": 463.2,
+      "duration_hours": 7.2,
+      "instructions": [...]
+    }
+  },
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+### POST /plan
+Lag komplett reiseplan
+
+**Request Body**:
+```json
+{
+  "origin": "Oslo",
+  "destination": "Bergen",
+  "travel_date": "2025-09-20",
+  "mode": "driving",
+  "days": 2
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "trip_summary": {...},
+    "route": {...},
+    "weather": {...},
+    "recommendations": [
+      "🧥 Pakk varm jakke - det er kaldt",
+      "☂️ Ta med paraply - regn i værmeldingen"
+    ]
+  },
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+### GET /health
+MCP server helsesjekk
+
+**Response**:
+```json
+{
+  "status": "healthy",
+  "service": "MCP API Server",
+  "timestamp": "2025-09-14T21:45:00.000Z"
+}
+```
+
+## 🔧 Brukseksempler
+
+### Komplett brukerforespørsel gjennom systemet
+
+```bash
+# 1. Brukerforespørsel til Web Service
+curl -X POST http://localhost:8080/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Planlegg tur til Bergen i morgen"}'
+
+# 2. Direkte til Agent Service  
+curl -X POST http://localhost:8001/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Hva er været i Bergen?"}'
+
+# 3. Direkte verktøybruk på MCP Server
+curl -X POST http://localhost:8000/weather \
+  -H "Content-Type: application/json" \
+  -d '{"location": "Bergen"}'
+```
+
+### Helsesjekker for alle tjenester
+
+```bash
+# Sjekk alle tjenester
+curl http://localhost:8080/health && echo
+curl http://localhost:8001/health && echo  
+curl http://localhost:8000/health && echo
+```
 | `days` | integer | Nei | Antall dager fremover å hente prognose for | 5 |
 
 #### Eksempel request
