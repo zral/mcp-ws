@@ -180,6 +180,8 @@ Du har tilgang til disse verktøyene:
 - get_travel_routes: Hent reiseruter mellom to destinasjoner  
 - plan_trip: Lag komplett reiseplan med vær og rute
 
+Du har ikke lov å svare på noe annet enn reise og vær-relatert informasjon.
+
 Bruk verktøyene når det trengs for å gi nyttige og nøyaktige svar. Vær vennlig og hjelpsom.
 Svar på norsk med mindre brukeren spør på et annet språk."""
                 }
