@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-from agent import TravelWeatherAgent
+from simple_agent import SimpleTravelWeatherAgent
 
 # Konfigurer logging
 logging.basicConfig(level=logging.INFO)
@@ -56,11 +56,10 @@ async def startup_event():
     global agent_instance
     try:
         logger.info("Starter Travel Weather Agent...")
-        agent_instance = TravelWeatherAgent()
-        await agent_instance.connect_to_mcp_server()
+        agent_instance = SimpleTravelWeatherAgent()
         # Start en default web sesjon
         agent_instance.start_new_session("Web Interface Session")
-        logger.info("Agent startet og tilkoblet MCP server")
+        logger.info("SimpleTravelWeatherAgent startet")
     except Exception as e:
         logger.error(f"Feil ved oppstart av agent: {e}")
         agent_instance = None
@@ -70,7 +69,6 @@ async def shutdown_event():
     """Avslutt agent ved nedstengning."""
     global agent_instance
     if agent_instance:
-        await agent_instance.disconnect()
         logger.info("Agent avsluttet")
 
 @app.get("/", response_class=HTMLResponse)
@@ -106,6 +104,30 @@ async def process_query(query_request: QueryRequest):
 
 @app.get("/tools")
 async def get_available_tools():
+    """Hent tilgjengelige verktøy fra agent."""
+    if not agent_instance:
+        raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")
+    
+    # Returner verktøy info fra SimpleTravelWeatherAgent
+    tools_info = [
+        {
+            "name": "get_weather_forecast",
+            "description": "Hent værprognose for en destinasjon"
+        },
+        {
+            "name": "get_travel_routes", 
+            "description": "Hent reiseruter mellom to destinasjoner"
+        },
+        {
+            "name": "plan_trip",
+            "description": "Lag komplett reiseplan med vær og rute"
+        }
+    ]
+    
+    return JSONResponse(content={
+        "success": True,
+        "tools": tools_info
+    })
     """Hent tilgjengelige verktøy fra MCP server."""
     if not agent_instance:
         raise HTTPException(status_code=503, detail="Agent ikke tilgjengelig")

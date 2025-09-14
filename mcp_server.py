@@ -106,6 +106,24 @@ async def get_route_openroute(origin_coords: tuple[float, float],
         Rute data eller None
     """
     try:
+        # Sjekk om avstanden er for lang (over 1000 km luftlinje)
+        from math import radians, cos, sin, asin, sqrt
+        
+        def haversine(lon1, lat1, lon2, lat2):
+            lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1 
+            dlat = lat2 - lat1 
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a)) 
+            return c * 6371  # Radius av jorden i km
+        
+        distance_km = haversine(origin_coords[1], origin_coords[0], 
+                               destination_coords[1], destination_coords[0])
+        
+        if distance_km > 1000:
+            logger.warning(f"Avstand {distance_km:.1f} km er for lang for OpenRouteService, bruker fallback")
+            return None
+        
         async with httpx.AsyncClient() as client:
             url = f"{OPENROUTE_API_BASE}/directions/{profile}"
             
@@ -118,8 +136,7 @@ async def get_route_openroute(origin_coords: tuple[float, float],
             data = {
                 "coordinates": coordinates,
                 "format": "json",
-                "instructions": True,
-                "language": "no"
+                "instructions": True
             }
             
             headers = {
@@ -129,8 +146,16 @@ async def get_route_openroute(origin_coords: tuple[float, float],
             # Legg til API nøkkel hvis tilgjengelig
             if OPENROUTE_API_KEY:
                 headers["Authorization"] = OPENROUTE_API_KEY
+                logger.info(f"Sender forespørsel til OpenRouteService med koordinater: {coordinates}")
+            else:
+                logger.warning("Ingen OpenRouteService API nøkkel funnet")
             
             response = await client.post(url, json=data, headers=headers)
+            
+            if response.status_code == 400:
+                logger.warning(f"OpenRouteService returnerte 400: {response.text}")
+                return None
+                
             response.raise_for_status()
             
             result = response.json()
@@ -167,26 +192,56 @@ async def get_route_fallback(origin: str, destination: str) -> str:
     distance_km = haversine(origin_coords[1], origin_coords[0], 
                            dest_coords[1], dest_coords[0])
     
-    # Estimat for reisetid (bil: 80 km/t, gange: 5 km/t)
-    driving_time_hours = distance_km / 80
-    walking_time_hours = distance_km / 5
+    # Kategoriser reisen basert på avstand
+    if distance_km < 5:
+        category = "Lokal reise"
+        recommendations = "Kan gås, sykles eller kjøres lokalt."
+        # Estimat for reisetid
+        driving_time = f"{distance_km * 2:.0f} minutter"
+        walking_time = f"{distance_km * 12:.0f} minutter"
+    elif distance_km < 100:
+        category = "Regional reise"
+        recommendations = "Bil eller offentlig transport anbefales."
+        driving_time_hours = distance_km / 60  # 60 km/t i byen/regional
+        driving_time = f"{driving_time_hours:.1f} timer"
+        walking_time = f"{distance_km / 5:.1f} timer"
+    elif distance_km < 1000:
+        category = "Nasjonal reise"
+        recommendations = "Bil, tog, buss eller fly avhengig av rute."
+        driving_time_hours = distance_km / 80  # 80 km/t på motorvei
+        driving_time = f"{driving_time_hours:.1f} timer"
+        walking_time = "Ikke praktisk å gå"
+    else:
+        category = "Internasjonal reise"
+        recommendations = "Fly er beste alternativ for så lange avstander."
+        flying_time_hours = distance_km / 800  # Gjennomsnitts flyhastighet
+        driving_time = f"Bil: {distance_km / 80:.1f} timer (hvis mulig)"
+        walking_time = "Ikke praktisk å gå"
+        
+        if distance_km > 800:
+            recommendations += f" Estimert flytid: {flying_time_hours:.1f} timer."
     
-    return f"""
+    result = f"""
 Reise fra {origin} til {destination}
+
+Kategori: {category}
+Luftlinje avstand: {distance_km:.1f} km
 
 Koordinater:
 • Start: {origin_coords[0]:.4f}, {origin_coords[1]:.4f}
 • Destinasjon: {dest_coords[0]:.4f}, {dest_coords[1]:.4f}
 
-Luftlinje avstand: {distance_km:.1f} km
-
 Estimert reisetid:
-• Bil: {driving_time_hours:.1f} timer
-• Gåing: {walking_time_hours:.1f} timer
+• {driving_time}
+• Gåing: {walking_time}
 
-Note: Dette er luftlinje beregninger. For nøyaktige ruter, 
-bruk dedikerte navigasjonsapper som Google Maps eller OpenStreetMap.
+Anbefalinger: {recommendations}
+
+Note: Dette er luftlinje beregninger. For nøyaktige ruter og tidstabeller, 
+bruk dedikerte navigasjonsapper som Google Maps, Rome2Rio eller lokale transporttjenester.
 """
+    
+    return result.strip()
 
 
 @mcp.tool()

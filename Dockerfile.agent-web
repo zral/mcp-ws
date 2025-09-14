@@ -16,14 +16,18 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Installer ekstra web avhengigheter
 RUN pip install --no-cache-dir fastapi uvicorn jinja2 python-multipart
 
-# Kopier applikasjons filer
+# Kopier applikasjonskode
 COPY web_agent.py .
-COPY agent.py .
+COPY simple_agent.py .
 COPY mcp_server.py .
+COPY conversation_memory.py .
+COPY requirements.txt .
 COPY templates/ ./templates/
 
-# Opprett ikke-root bruker for sikkerhet
-RUN useradd -m -u 1000 webapp && chown -R webapp:webapp /app
+# Opprett ikke-root bruker for sikkerhet og data directory  
+RUN mkdir -p /data && \
+    useradd -m -u 1000 webapp && \
+    chown -R webapp:webapp /app /data
 USER webapp
 
 # Eksponér port

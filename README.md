@@ -2,23 +2,43 @@
 
 ## Oversikt
 
-Dette prosjektet inneholder en Model Context Protocol (MCP) server og agent som kombinerer reisedata fra Google med værdata fra OpenWeatherMap for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
+Dette prosjektet inneholder en Model Context Protocol (MCP) server og intelligent agent som kombinerer reisedata med værdata for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
+
+**Siste oppdatering**: Systemet har blitt refaktorert for optimal Docker deployment med direkte funksjonalitet i stedet for subprocess MCP kommunikasjon.
 
 ## Komponenter
 
 ### MCP Server (`mcp_server.py`)
 Tilbyr følgende verktøy:
 - `get_weather_forecast`: Hent værprognose for en destinasjon (1-5 dager)
-- `get_travel_routes`: Hent ruter og reiseinformasjon mellom to destinasjoner (via Nominatim + OpenRouteService)
+- `get_travel_routes`: Hent ruter og reiseinformasjon mellom to destinasjoner
 - `plan_trip`: Kombiner reise- og værdata for optimal reiseplanlegging
 
-### Agent (`agent.py`)
-En intelligent agent som bruker MCP serveren til å:
-- Svare på spørsmål om vær på destinasjoner
-- Gi reiseråd basert på værforhold
-- Planlegge komplette reiser med vær- og ruteinformasjon
-- **Huske tidligere samtaler** med persistent SQLite database
-- Administrere flere samtalesesjoner
+**Gratis API-er som brukes:**
+- OpenWeatherMap for værdata
+- Nominatim (OpenStreetMap) for geocoding  
+- OpenRouteService for rute-beregning (med fallback algoritmer)
+
+### CLI Agent (`simple_agent.py`)
+En kommandolinje agent som:
+- Tar spørsmål som kommandolinjeargument eller interaktiv modus
+- Bruker OpenAI GPT-4o for intelligent respons
+- Har tilgang til alle værdata og reisedata verktøy
+- **Huker tidligere samtaler** med persistent SQLite database
+- Bruker direkte MCP funksjonalitet uten subprocess kommunikasjon
+
+### Web Interface (`web_agent.py`)
+En web-basert grensesnitt som:
+- Tilbyr HTTP REST API på port 8080
+- HTML interface for enkel bruk
+- Samme funksjonalitet som CLI agent
+- Optimalisert for Docker deployment
+
+### Simplified Agent (`simple_agent.py`)
+En forenklet agent klasse som:
+- Bruker MCP server funksjonalitet direkte (ingen subprocess)
+- Fungerer optimalt i Docker containere
+- Deles av både CLI og web interface
 
 ## Funksjoner
 
@@ -59,26 +79,58 @@ Sett disse i `.env` filen (kopier fra `.env.example`).
 pip install -r requirements.txt
 ```
 
-## Docker Oppsett (Anbefalt)
+## Docker Deployment (Anbefalt)
 
-Alle komponenter kjører i Docker containere - ingen installasjon på host-maskinen kreves.
+Systemet er optimalisert for Docker deployment med alle komponenter i separate containere.
 
 ### Forutsetninger
 - Docker og Docker Compose installert
-- API nøkler (se under)
+- API nøkler konfigurert
 
 ### Rask start
 ```bash
-# Klon repository
-git clone <repository-url>
+# Klon repository og naviger til mappen
 cd travel-weather-mcp
 
 # Kopier og rediger miljøvariabler
 cp .env.example .env
-# Rediger .env med dine API nøkler
+# Rediger .env med dine API nøkler:
+# - OPENAI_API_KEY (kreves)
+# - OPENWEATHER_API_KEY (kreves)
+# - OPENROUTE_API_KEY (valgfri)
 
-# Start alle tjenester
-./start.sh
+# Bygg og start alle tjenester
+docker-compose up -d
+
+# Sjekk at alt kjører
+docker-compose ps
+```
+
+### Tjenester som startes
+- **travel-weather-mcp-server**: MCP server (kjører på demand)
+- **travel-weather-agent**: CLI agent container (kjører i bakgrunnen)
+- **travel-weather-web**: Web interface på http://localhost:8080
+
+### Bruk av tjenestene
+
+#### Web Interface
+Åpne http://localhost:8080 i nettleseren for enkel bruk.
+
+#### CLI Agent
+```bash
+# Enkelt spørsmål
+docker exec -it travel-weather-agent python simple_agent.py "Hvordan er været i Oslo i dag?"
+
+# Interaktiv modus
+docker exec -it travel-weather-agent python simple_agent.py
+```
+
+#### API Tilgang
+```bash
+# REST API kall
+curl -X POST http://localhost:8080/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Planlegg en reise fra Oslo til Bergen i morgen"}'
 ```
 
 ### Manuell Docker start
@@ -119,7 +171,7 @@ Gå til http://localhost:8080 i nettleseren din for et enkelt brukergrensesnitt.
 ### 🐳 Docker Commands
 ```bash
 # Interaktiv agent i terminal
-docker-compose exec travel-agent python agent.py
+docker-compose exec travel-agent python simple_agent.py
 
 # Se alle kjørende tjenester
 docker-compose ps
