@@ -1,5 +1,15 @@
 # Travel Weather MCP Server og Agent
 
+## 📚 Dokumentasjon
+
+**➡️ [Komplett Dokumentasjon](./docs/README.md)** - Start her for full oversikt
+
+### Viktige dokumenter:
+- **[MCP Arkitektur & Template Guide](./docs/mcp-architecture-template.md)** - Detaljert arkitektur og mal for å lage egne agenter
+- **[API Dokumentasjon](./docs/mcp-api-documentation.md)** - API referanse og verktøybeskrivelser  
+- **[Integrasjonsguide](./docs/mcp-integration-guide.md)** - Praktiske eksempler
+- **[OpenAPI Schema](./docs/mcp-openapi-schema.md)** - Teknisk spesifikasjon
+
 ## Oversikt
 
 Dette prosjektet inneholder en Model Context Protocol (MCP) server og intelligent agent som kombinerer reisedata med værdata for å hjelpe med reiseplanlegging basert på værutsikter på destinasjonen.
@@ -61,7 +71,21 @@ En forenklet agent klasse som:
 - Husker samtalehistorikk på tvers av sesjoner
 - SQLite database for lokal lagring
 - Administrering av flere samtalesesjoner
-- Se [docs/memory.md](docs/memory.md) for detaljer
+
+## 🏗️ Systemarkitektur
+
+Systemet bruker en modulær MCP (Model Context Protocol) arkitektur:
+
+```
+🌐 Web/CLI Interface → 🤖 AI Agent → 🔧 MCP Tools → 🌍 External APIs
+```
+
+- **MCP Server**: Rene verktøyfunksjoner (vær, ruter, planlegging)
+- **AI Agent**: OpenAI GPT-4o med Function Calling
+- **REST API**: HTTP grensesnitt for integrasjon
+- **Memory**: Persistent samtalehukommelse
+
+> **💡 For detaljert arkitekturinformasjon, se [MCP Arkitektur & Template Guide](./docs/mcp-architecture-template.md)**
 
 ## Forutsetninger
 

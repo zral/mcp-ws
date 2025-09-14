@@ -4,6 +4,12 @@
 
 Travel Weather MCP Server er en Model Context Protocol (MCP) server som tilbyr værdata og reiseplanlegging. Serveren eksponerer tre hovedfunksjoner som kan brukes av AI-agenter for å hjelpe brukere med reiseplanlegging basert på værforhold.
 
+### 📚 Relatert Dokumentasjon
+
+- **[MCP Arkitektur & Template Guide](./mcp-architecture-template.md)** - Detaljert forklaring av systemarkitektur og mal for å lage nye MCP-baserte agenter
+- **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk spesifikasjon av API-endepunkter
+- **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler på hvordan integrere systemet
+
 ## Server Informasjon
 
 - **Navn**: Travel Weather MCP Server
@@ -11,6 +17,25 @@ Travel Weather MCP Server er en Model Context Protocol (MCP) server som tilbyr v
 - **Protokoll**: Model Context Protocol (MCP)
 - **Port**: 8000 (når kjørt standalone)
 - **Environment**: Docker container eller direkte Python import
+
+## Systemarkitektur
+
+Travel Weather systemet består av flere komponenter som sammen leverer en komplett AI-drevet reiseplanleggingsløsning:
+
+### Hovedkomponenter
+
+1. **MCP Server** (`mcp_server.py`) - Implementerer rene verktøyfunksjoner
+2. **AI Agent** (`simple_agent.py`) - Kobler OpenAI GPT med MCP verktøy
+3. **REST API** (`web_agent.py`) - HTTP grensesnitt for web/mobile klienter
+4. **Web Interface** - Browser-basert brukergrensesnitt på port 8080
+
+### Deployment
+
+- **Docker Compose**: Multi-container oppsett med web, agent og MCP server
+- **Persistent Storage**: SQLite database for samtalehukommelse
+- **Environment Variables**: Sikker konfigurasjon av API-nøkler
+
+> **💡 For detaljert arkitekturinformasjon og mal for å lage egne agenter, se [MCP Arkitektur & Template Guide](./mcp-architecture-template.md)**
 
 ## Tilgjengelige Verktøy (Tools)
 

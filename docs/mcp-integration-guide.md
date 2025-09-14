@@ -2,6 +2,8 @@
 
 ## Quick Start
 
+> **📋 For detaljert arkitektur og template for å lage egne MCP agenter, se [MCP Arkitektur & Template Guide](./mcp-architecture-template.md)**
+
 ### Direkte Python Import (Anbefalt)
 
 ```python
