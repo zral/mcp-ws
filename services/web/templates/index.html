@@ -110,84 +110,6 @@
             margin-right: 5px;
         }
         
-        .email-button {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 8px 15px;
-            background: #28a745;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-size: 0.9em;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .email-button:hover {
-            background: #218838;
-        }
-        
-        .email-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-        
-        .email-modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 500px;
-        }
-        
-        .email-modal input, .email-modal textarea {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-family: inherit;
-        }
-        
-        .email-modal textarea {
-            height: 100px;
-            resize: vertical;
-        }
-        
-        .email-modal-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        
-        .email-modal button {
-            flex: 1;
-            padding: 10px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        
-        .email-send {
-            background: #007bff;
-            color: white;
-        }
-        
-        .email-cancel {
-            background: #6c757d;
-            color: white;
-        }
-        
         .input-container {
             display: flex;
             padding: 20px;
@@ -352,72 +274,8 @@
         </div>
     </div>
 
-    <!-- E-post modal -->
-    <div class="email-modal" id="emailModal">
-        <div class="email-modal-content">
-            <h3>📧 Send på e-post</h3>
-            <input type="email" id="emailAddress" placeholder="E-postadresse" required>
-            <input type="text" id="emailSubject" placeholder="Emne" required>
-            <textarea id="emailContent" placeholder="Innhold..." readonly></textarea>
-            <div class="email-modal-buttons">
-                <button class="email-send" onclick="sendEmailMessage()">Send e-post</button>
-                <button class="email-cancel" onclick="closeEmailModal()">Avbryt</button>
-            </div>
-        </div>
-    </div>
-
     <script>
         let isProcessing = false;
-        let currentEmailContent = '';
-        
-        // E-post modal funksjoner
-        function openEmailModal(content) {
-            currentEmailContent = content;
-            document.getElementById('emailContent').value = content;
-            document.getElementById('emailSubject').value = 'Reiseinfo fra Ingrids Reisetjenester';
-            document.getElementById('emailModal').style.display = 'block';
-        }
-        
-        function closeEmailModal() {
-            document.getElementById('emailModal').style.display = 'none';
-            document.getElementById('emailAddress').value = '';
-            document.getElementById('emailSubject').value = '';
-            document.getElementById('emailContent').value = '';
-        }
-        
-        async function sendEmailMessage() {
-            const email = document.getElementById('emailAddress').value;
-            const subject = document.getElementById('emailSubject').value;
-            const content = document.getElementById('emailContent').value;
-            
-            if (!email || !subject || !content) {
-                alert('Vennligst fyll inn alle feltene');
-                return;
-            }
-            
-            try {
-                const query = `Send denne informasjonen på e-post til ${email} med emne "${subject}": ${content}`;
-                
-                const response = await fetch('/query', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ query: query })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    alert('E-post forespørsel sendt!');
-                    addMessage(data.response, 'agent');
-                    closeEmailModal();
-                } else {
-                    alert('Feil ved sending av e-post forespørsel');
-                }
-            } catch (error) {
-                alert('Feil ved sending: ' + error.message);
-            }
-        }
         
         // Sjekk helse status
         async function checkHealth() {
@@ -536,10 +394,7 @@
                 // Render markdown for agent-meldinger
                 const renderedText = renderMarkdown(text);
                 
-                // Legg til e-post knapp for agent-meldinger
-                const emailButtonHtml = `<br><button class="email-button" onclick="openEmailModal('${text.replace(/'/g, "\\'")}')">📧 Send på e-post</button>`;
-                
-                messageDiv.innerHTML = `<strong>🤖 Ingrid:</strong><br>${renderedText}${emailButtonHtml}`;
+                messageDiv.innerHTML = `<strong>🤖 Ingrid:</strong><br>${renderedText}`;
             }
             
             messagesContainer.appendChild(messageDiv);
