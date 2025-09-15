@@ -10,7 +10,10 @@ import asyncio
 import json
 import logging
 import os
+import smtplib
 from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -38,8 +41,18 @@ OPENROUTE_API_BASE = "https://api.openrouteservice.org/v2"
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 OPENROUTE_API_KEY = os.getenv("OPENROUTE_API_KEY")
 
+# E-post konfigurasjon
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
+
 if not OPENWEATHER_API_KEY:
     logger.warning("OPENWEATHER_API_KEY ikke satt i miljøvariabler")
+
+if not SMTP_USERNAME or not SMTP_PASSWORD:
+    logger.warning("SMTP_USERNAME eller SMTP_PASSWORD ikke satt - e-post funksjonalitet vil ikke fungere")
 
 # HTTP klient
 http_client = httpx.AsyncClient()
@@ -59,6 +72,12 @@ class TripRequest(BaseModel):
     travel_date: Optional[str] = None
     mode: str = "driving"
     days: int = 1
+
+class EmailRequest(BaseModel):
+    to_email: str
+    subject: str
+    content: str
+    content_type: str = "text"  # "text" eller "html"
 
 class MCPResponse(BaseModel):
     success: bool
@@ -111,6 +130,85 @@ def format_route_instruction(instruction: str) -> str:
         instruction = re.sub(pattern, r'**\1**', instruction)
     
     return instruction
+
+def convert_markdown_to_html(text: str) -> str:
+    """Konverter markdown til HTML for e-post."""
+    import re
+    
+    # Konverter **bold** til <b>bold</b>
+    html = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
+    
+    # Konverter nummererte lister
+    html = re.sub(r'^(\d+)\.\s+(.+)$', r'<div>\1. \2</div>', html, flags=re.MULTILINE)
+    
+    # Konverter linjeskift til <br>
+    html = html.replace('\n', '<br>\n')
+    
+    # Legg til HTML struktur
+    html = f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
+        b {{ color: #2c3e50; }}
+        div {{ margin: 5px 0; }}
+    </style>
+</head>
+<body>
+{html}
+</body>
+</html>'''
+    
+    return html
+
+def convert_markdown_to_plain(text: str) -> str:
+    """Konverter markdown til lesbar ren tekst."""
+    import re
+    
+    # Fjern ** markering og gjør teksten med store bokstaver for synlighet
+    plain = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    
+    return plain
+
+async def send_email(to_email: str, subject: str, content: str, content_type: str = "text") -> Dict[str, Any]:
+    """Send e-post via SMTP."""
+    try:
+        if not SMTP_USERNAME or not SMTP_PASSWORD:
+            return {"error": "E-post konfigurasjon mangler. Kontakt administrator."}
+        
+        # Opprett e-post melding
+        msg = MIMEMultipart()
+        msg['From'] = FROM_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        # Legg til innhold
+        if content_type == "html":
+            # Konverter markdown til HTML for e-post
+            html_content = convert_markdown_to_html(content)
+            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+        else:
+            # For vanlig tekst, konverter markdown til lesbar tekst
+            plain_content = convert_markdown_to_plain(content)
+            msg.attach(MIMEText(plain_content, 'plain', 'utf-8'))
+        
+        # Send e-post
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        logger.info(f"E-post sendt til {to_email}")
+        return {
+            "success": True,
+            "message": f"E-post sendt til {to_email}",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"E-post sending error: {e}")
+        return {"error": f"Kunne ikke sende e-post: {str(e)}"}
 
 async def geocode_location(location: str) -> Optional[Dict[str, float]]:
     """Geocode en lokasjon til koordinater."""
@@ -425,6 +523,28 @@ async def plan_trip_endpoint(request: TripRequest):
         
     except Exception as e:
         logger.error(f"Trip planning API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/send-email", response_model=MCPResponse)
+async def send_email_endpoint(request: EmailRequest):
+    """Send e-post med reiseinfo eller annet innhold."""
+    try:
+        logger.info(f"Email request to: {request.to_email}")
+        result = await send_email(
+            request.to_email,
+            request.subject,
+            request.content,
+            request.content_type
+        )
+        
+        return MCPResponse(
+            success=True,
+            data=result,
+            timestamp=datetime.now().isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Email API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

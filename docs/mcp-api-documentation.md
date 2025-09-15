@@ -238,6 +238,47 @@ MCP server helsesjekk
 }
 ```
 
+### POST /send-email
+Send reiseinfo eller annet innhold på e-post
+
+**Request Body**:
+```json
+{
+  "to_email": "user@example.com",
+  "subject": "Din reiseplan fra Ingrids Reisetjenester",
+  "content": "Her er kjøreruten fra **Oslo til Bergen**:\n\n1. **Start i Oslo** og kjør nordover på **Arbeidergata**.\n2. **Sving til venstre** inn på **Kristian IVs gate**.\n\n**Estimert reisetid:** 8 timer\n**Avstand:** 456 km",
+  "content_type": "html"
+}
+```
+
+**Parameters**:
+- `to_email` (string, required): Mottakers e-postadresse
+- `subject` (string, required): E-post emne
+- `content` (string, required): E-post innhold (støtter markdown formatering)
+- `content_type` (string, optional): "text" eller "html" (default: "text")
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "message": "E-post sendt til user@example.com",
+    "timestamp": "2025-09-15T18:35:01.541065"
+  },
+  "timestamp": "2025-09-15T18:35:01.541253"
+}
+```
+
+**Konfigkrasjon**: Krever SMTP miljøvariabler:
+```bash
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+FROM_EMAIL=your-email@gmail.com
+```
+
 ## 🔧 Brukseksempler
 
 ### Komplett brukerforespørsel gjennom systemet

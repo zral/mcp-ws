@@ -39,10 +39,10 @@
 │                        MCP Server                                              │
 │                    (services/mcp-server/)                                      │
 │                                                                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                │
-│  │   FastAPI App   │  │   Weather API   │  │   Route API     │                │
-│  │   Port 8000     │  │   (OpenWeather) │  │ (OpenRouteService)│              │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+│  │   FastAPI App   │  │   Weather API   │  │   Route API     │  │   Email SMTP    │
+│  │   Port 8000     │  │   (OpenWeather) │  │ (OpenRouteService)│ │   (Gmail/etc)   │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
 │                                  │                                              │
 │                                  │ External API Calls                          │
 └──────────────────────────────────┼──────────────────────────────────────────────┘
@@ -121,13 +121,17 @@ GET  /health     - Helsesjekk med agent readiness status
 - Ruteberegning via OpenRouteService API (med fallback)
 - Geocoding via Nominatim API
 - Komplett reiseplanlegging med kombinerte data
+- **E-post leveranse** med SMTP support og HTML-formatering
 - Robust feilhåndtering og fallback algoritmer
 
 #### API Endpoints:
 ```
-POST /weather    - Hent værprognose for lokasjon
-POST /routes     - Beregn rute mellom to destinasjoner  
-POST /plan       - Lag komplett reiseplan med vær og rute
+POST /weather      - Hent værprognose for lokasjon
+POST /routes       - Beregn rute mellom to destinasjoner  
+POST /plan         - Lag komplett reiseplan med vær og rute
+POST /send-email   - Send reiseinfo på e-post med formatering
+GET  /health       - Helsesjekk
+```
 GET  /health     - Helsesjekk for MCP server
 ```
 

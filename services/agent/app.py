@@ -133,6 +133,36 @@ class MicroserviceAgent:
                         "required": ["origin", "destination"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "send_email",
+                    "description": "Send reiseinfo eller annet innhold på e-post",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "to_email": {
+                                "type": "string",
+                                "description": "Mottakers e-postadresse"
+                            },
+                            "subject": {
+                                "type": "string",
+                                "description": "E-post emne"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "E-post innhold (tekst eller markdown)"
+                            },
+                            "content_type": {
+                                "type": "string",
+                                "description": "Innhold type: text eller html",
+                                "default": "text"
+                            }
+                        },
+                        "required": ["to_email", "subject", "content"]
+                    }
+                }
             }
         ]
         
@@ -167,6 +197,14 @@ class MicroserviceAgent:
                     "travel_date": arguments.get("travel_date"),
                     "mode": arguments.get("mode", "driving"),
                     "days": arguments.get("days", 5)
+                }
+            elif tool_name == "send_email":
+                endpoint = "/send-email"
+                payload = {
+                    "to_email": arguments["to_email"],
+                    "subject": arguments["subject"],
+                    "content": arguments["content"],
+                    "content_type": arguments.get("content_type", "text")
                 }
             else:
                 raise ValueError(f"Ukjent verktøy: {tool_name}")
@@ -216,6 +254,11 @@ Du har tilgang til disse verktøyene:
 - get_weather_forecast: Hent værprognose for en destinasjon
 - get_travel_routes: Hent reiseruter mellom to destinasjoner  
 - plan_trip: Lag komplett reiseplan med vær og rute
+- send_email: Send reiseinfo eller annet innhold på e-post
+
+VIKTIG: Når brukere ber om å få reiseinfo sendt på e-post, bruk send_email verktøyet. 
+Spør alltid om e-postadresse hvis den ikke er oppgitt, og lag en passende emnetittel.
+For e-post innhold, bruk markdown-formatering (**bold** tekst) for å fremheve viktige detaljer.
 
 Du skal kun svare på reise- og vær-relaterte spørsmål. Du er ekspert på reiseplanlegging og gir alltid praktiske råd.
 

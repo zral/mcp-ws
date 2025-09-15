@@ -90,11 +90,22 @@ docker-compose ps
 
 ### Miljøvariabler
 ```bash
+# Kreves
 OPENAI_API_KEY=your_openai_api_key_here
 OPENWEATHER_API_KEY=your_openweather_api_key_here  
-OPENROUTE_API_KEY=your_openroute_api_key_here # Valgfri
+
+# Valgfrie
+OPENROUTE_API_KEY=your_openroute_api_key_here # For bedre ruter
+
+# E-post konfigurasjon (for e-post funksjonalitet)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your-email@gmail.com
+SMTP_PASSWORD=your-app-password  # Gmail app-passord
+FROM_EMAIL=your-email@gmail.com
 ```
-- Deles av både CLI og web interface
+- API nøklene deles av alle tjenester
+- E-post konfigurasjon aktiverer "📧 Send på e-post" funksjonaliteten
 
 ## Funksjoner
 
@@ -107,11 +118,18 @@ OPENROUTE_API_KEY=your_openroute_api_key_here # Valgfri
 - Ruter og reiseinformasjon mellom destinasjoner
 - Reiseavstand og tidsestimater
 - Alternative transportmåter
+- Detaljerte navigasjonsinstruksjoner med bold formatering
 
 ### 🧳 Reiseplanlegging
 - Kombinert vær- og reiseinformasjon
 - Smarte anbefalinger basert på værforhold
 - Optimal timing for reiser
+
+### 📧 E-post Integration
+- **Send reiseinfo direkte på e-post** med "📧 Send på e-post" knappen
+- Automatisk formatering med HTML og markdown styling
+- SMTP support via Gmail eller andre leverandører
+- Professional e-post design med bold veinavnsprisser og ruter
 
 ### 🧠 Persistent Hukommelse
 - Husker samtalehistorikk på tvers av sesjoner
