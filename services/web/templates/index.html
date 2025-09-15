@@ -80,7 +80,34 @@
         .agent-message {
             background: white;
             border: 1px solid #e0e0e0;
-            white-space: pre-wrap;
+            line-height: 1.6;
+        }
+        
+        .agent-message strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        
+        .agent-message h1, .agent-message h2, .agent-message h3 {
+            color: #2c3e50;
+            margin: 10px 0 5px 0;
+        }
+        
+        .agent-message h3 {
+            font-size: 1.1em;
+        }
+        
+        .agent-message li {
+            margin: 5px 0;
+            padding-left: 0;
+            list-style: none;
+        }
+        
+        .agent-message li:before {
+            content: "• ";
+            color: #007bff;
+            font-weight: bold;
+            margin-right: 5px;
         }
         
         .input-container {
@@ -338,6 +365,23 @@
             }
         }
         
+        // Enkel markdown renderer for bold tekst og lister
+        function renderMarkdown(text) {
+            return text
+                // Bold tekst: **tekst** -> <strong>tekst</strong>
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                // Italic: *tekst* -> <em>tekst</em>
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // Overskrifter: ### Tekst -> <h3>Tekst</h3>
+                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                // Punktlister: - punkt eller • punkt
+                .replace(/^[•-] (.+)$/gm, '<li>$1</li>')
+                // Linjeskift bevares
+                .replace(/\n/g, '<br>');
+        }
+        
         // Legg til melding i chat
         function addMessage(text, sender) {
             const messagesContainer = document.getElementById('chatMessages');
@@ -347,7 +391,9 @@
             if (sender === 'user') {
                 messageDiv.innerHTML = `<strong>👤 Du:</strong><br>${text}`;
             } else {
-                messageDiv.innerHTML = `<strong>🤖 Ingrid:</strong><br>${text}`;
+                // Render markdown for agent-meldinger
+                const renderedText = renderMarkdown(text);
+                messageDiv.innerHTML = `<strong>🤖 Ingrid:</strong><br>${renderedText}`;
             }
             
             messagesContainer.appendChild(messageDiv);
