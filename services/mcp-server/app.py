@@ -83,6 +83,35 @@ async def shutdown_event():
     logger.info("MCP API Server avsluttet")
 
 # Helper funksjoner
+def format_route_instruction(instruction: str) -> str:
+    """Formater ruteinstruksjoner ved å legge til markdown bold formatering for viktige ord."""
+    import re
+    
+    # Først håndter eksisterende **tekst** markering (beholdes som den er)
+    # Ingen endring nødvendig for eksisterende markdown
+    
+    # Legg til markdown bold formatering for retninger
+    directions = ['Turn left', 'Turn right', 'Keep left', 'Keep right', 'Head north', 
+                  'Head south', 'Head east', 'Head west', 'Continue straight',
+                  'Enter the roundabout', 'left', 'right', 'straight', 'north', 'south', 'east', 'west']
+    
+    for direction in directions:
+        # Unngå å dobbel-formatere
+        pattern = r'\b(?<!\*\*)(' + re.escape(direction) + r')(?!\*\*)\b'
+        instruction = re.sub(pattern, r'**\1**', instruction, flags=re.IGNORECASE)
+    
+    # Legg til markdown bold for veinavnsprisser og viktige steder
+    street_patterns = [
+        r'\b(?<!\*\*)(\w+(?:gate|vei|veien|gata|gaten|plass|plassen|tunnel|tunnelen))(?!\*\*)\b',
+        r'\b(?<!\*\*)(E \d+)(?!\*\*)\b',  # Europavei
+        r'\b(?<!\*\*)(\d{3,4})(?!\*\*)\b'  # Fylkesvei nummer
+    ]
+    
+    for pattern in street_patterns:
+        instruction = re.sub(pattern, r'**\1**', instruction)
+    
+    return instruction
+
 async def geocode_location(location: str) -> Optional[Dict[str, float]]:
     """Geocode en lokasjon til koordinater."""
     try:
@@ -214,7 +243,7 @@ async def get_travel_routes(origin: str, destination: str, mode: str = "driving"
                     result["route"] = {
                         "distance_km": round(route["summary"]["distance"] / 1000, 1),
                         "duration_hours": round(route["summary"]["duration"] / 3600, 1),
-                        "instructions": [step["instruction"] for step in route["segments"][0]["steps"][:5]]
+                        "instructions": [format_route_instruction(step["instruction"]) for step in route["segments"][0]["steps"]]
                     }
                 else:
                     logger.warning(f"OpenRoute API returned status {response.status_code}")
