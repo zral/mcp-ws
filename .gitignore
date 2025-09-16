@@ -144,3 +144,4 @@ temp/
 # Backup filer
 *.bak
 *.backup
+~$*.pptx
