@@ -67,10 +67,7 @@ nano .env
 ### 2. Start systemet
 
 ```bash
-# Automatisk setup og start
-./start.sh
-
-# ELLER manuelt:
+# Bygg og start alle containere
 docker-compose build
 docker-compose up -d
 ```
