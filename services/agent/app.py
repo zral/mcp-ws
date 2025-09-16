@@ -35,7 +35,7 @@ class MicroserviceAgent:
     
     def __init__(self, mcp_server_url: str = None, memory_db_path: str = "/data/conversations.db"):
         # Initialiser OpenAI klient
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"),base_url="https://models.github.ai/inference")
         
         # MCP server URL - bruk environment variable hvis tilgjengelig
         if mcp_server_url is None:
@@ -49,7 +49,7 @@ class MicroserviceAgent:
         # HTTP klient for MCP kall
         self.http_client = httpx.AsyncClient()
         
-        # Definer verktøy for OpenAI
+        # Definer verktøy for Mistral AI
         self.tools = [
             {
                 "type": "function",
@@ -62,105 +62,9 @@ class MicroserviceAgent:
                             "location": {
                                 "type": "string",
                                 "description": "Navn på by eller lokasjon"
-                            },
-                            "days": {
-                                "type": "integer",
-                                "description": "Antall dager fremover (1-5)",
-                                "default": 5
                             }
                         },
                         "required": ["location"]
-                    }
-                }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "get_travel_routes",
-                    "description": "Hent reiseruter mellom to destinasjoner",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin": {
-                                "type": "string",
-                                "description": "Start destinasjon"
-                            },
-                            "destination": {
-                                "type": "string", 
-                                "description": "Slutt destinasjon"
-                            },
-                            "mode": {
-                                "type": "string",
-                                "description": "Transportmåte: driving, walking, cycling",
-                                "default": "driving"
-                            }
-                        },
-                        "required": ["origin", "destination"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "plan_trip", 
-                    "description": "Lag komplett reiseplan med vær og rute",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin": {
-                                "type": "string",
-                                "description": "Start destinasjon"
-                            },
-                            "destination": {
-                                "type": "string",
-                                "description": "Slutt destinasjon"
-                            },
-                            "travel_date": {
-                                "type": "string",
-                                "description": "Reisedato (valgfritt)"
-                            },
-                            "mode": {
-                                "type": "string", 
-                                "description": "Transportmåte",
-                                "default": "driving"
-                            },
-                            "days": {
-                                "type": "integer",
-                                "description": "Antall dager værprognose",
-                                "default": 5
-                            }
-                        },
-                        "required": ["origin", "destination"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "send_email",
-                    "description": "Send reiseinfo eller annet innhold på e-post",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "to_email": {
-                                "type": "string",
-                                "description": "Mottakers e-postadresse"
-                            },
-                            "subject": {
-                                "type": "string",
-                                "description": "E-post emne"
-                            },
-                            "content": {
-                                "type": "string",
-                                "description": "E-post innhold (tekst eller markdown)"
-                            },
-                            "content_type": {
-                                "type": "string",
-                                "description": "Innhold type: text eller html",
-                                "default": "text"
-                            }
-                        },
-                        "required": ["to_email", "subject", "content"]
                     }
                 }
             }
@@ -175,36 +79,11 @@ class MicroserviceAgent:
         try:
             logger.info(f"Kaller MCP server: {tool_name} med args: {arguments}")
             
-            # Map tool name til MCP endpoint
+            # Map tool name til MCP endpoint - kun weather i lab01
             if tool_name == "get_weather_forecast":
                 endpoint = "/weather"
                 payload = {
-                    "location": arguments["location"],
-                    "days": arguments.get("days", 5)
-                }
-            elif tool_name == "get_travel_routes":
-                endpoint = "/routes"
-                payload = {
-                    "origin": arguments["origin"],
-                    "destination": arguments["destination"], 
-                    "mode": arguments.get("mode", "driving")
-                }
-            elif tool_name == "plan_trip":
-                endpoint = "/plan"
-                payload = {
-                    "origin": arguments["origin"],
-                    "destination": arguments["destination"],
-                    "travel_date": arguments.get("travel_date"),
-                    "mode": arguments.get("mode", "driving"),
-                    "days": arguments.get("days", 5)
-                }
-            elif tool_name == "send_email":
-                endpoint = "/send-email"
-                payload = {
-                    "to_email": arguments["to_email"],
-                    "subject": arguments["subject"],
-                    "content": arguments["content"],
-                    "content_type": arguments.get("content_type", "text")
+                    "location": arguments["location"]
                 }
             else:
                 raise ValueError(f"Ukjent verktøy: {tool_name}")
@@ -244,26 +123,25 @@ class MicroserviceAgent:
             # Hent samtalehistorikk
             history = self.memory.get_conversation_history(self.current_session_id)
             
-            # Bygg meldinger for OpenAI
+            # Bygg meldinger for Mistral AI
             messages = [
                 {
                     "role": "system",
-                    "content": """Du er Ingrid, en vennlig og kompetent reiseassistent fra Ingrids Reisetjenester. Du hjelper brukere med smart reiseplanlegging basert på værutsikter og optimale ruter.
+                    "content": """Du er Ingrid, en vennlig og kompetent værekspert fra Ingrids Reisetjenester. 
 
-Du har tilgang til disse verktøyene:
+Dette er LAB01 versjonen - en forenklet utgave for workshop deltagere.
+
+Du har kun tilgang til ett verktøy:
 - get_weather_forecast: Hent værprognose for en destinasjon
-- get_travel_routes: Hent reiseruter mellom to destinasjoner  
-- plan_trip: Lag komplett reiseplan med vær og rute
-- send_email: Send reiseinfo eller annet innhold på e-post
 
-VIKTIG: Når brukere ber om å få reiseinfo sendt på e-post, bruk send_email verktøyet. 
-Spør alltid om e-postadresse hvis den ikke er oppgitt, og lag en passende emnetittel.
-For e-post innhold, bruk markdown-formatering (**bold** tekst) for å fremheve viktige detaljer.
+Du skal fokusere på å hjelpe brukere med værinformasjon og gi praktiske råd basert på værforholdene.
 
-Du skal kun svare på reise- og vær-relaterte spørsmål. Du er ekspert på reiseplanlegging og gir alltid praktiske råd.
+Bruk verktøyet når brukere spør om vær for spesifikke steder. Gi alltid nyttige råd om klær, aktiviteter og forholdsregler basert på værmeldingen.
 
-Bruk verktøyene når det trengs for å gi nyttige og nøyaktige svar. Vær vennlig, personlig og hjelpsom - du representerer Ingrids Reisetjenester.
-Svar på norsk med mindre brukeren spør på et annet språk."""
+Vær vennlig, personlig og hjelpsom - du representerer Ingrids Reisetjenester.
+Svar på norsk med mindre brukeren spør på et annet språk.
+
+MERK: Dette er en forenklet versjon. Brukere kan spørre om andre tjenester, men du kan kun hjelpe med vær."""
                 }
             ]
             
@@ -277,9 +155,9 @@ Svar på norsk med mindre brukeren spør på et annet språk."""
             # Legg til ny brukermelding
             messages.append({"role": "user", "content": query})
             
-            # Første AI-kall
+            # Første AI-kall med OpenAI
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=messages,
                 tools=self.tools,
                 tool_choice="auto"
@@ -289,7 +167,12 @@ Svar på norsk med mindre brukeren spør på et annet språk."""
             
             # Håndter verktøykall
             if response_message.tool_calls:
-                messages.append(response_message)
+                # Legg til assistant melding med tool calls
+                messages.append({
+                    "role": "assistant", 
+                    "content": response_message.content,
+                    "tool_calls": [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in response_message.tool_calls]
+                })
                 
                 for tool_call in response_message.tool_calls:
                     function_name = tool_call.function.name
@@ -300,15 +183,15 @@ Svar på norsk med mindre brukeren spør på et annet språk."""
                     
                     messages.append({
                         "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": tool_result
+                        "content": tool_result,
+                        "tool_call_id": tool_call.id
                     })
                 
                 logger.info("Verktøykall fullført, henter endelig svar...")
                 
-                # Få endelig svar
+                # Få endelig svar med OpenAI
                 final_response = self.client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-4o-mini",
                     messages=messages
                 )
                 
@@ -350,29 +233,16 @@ def start_agent_api():
     """Start agent som HTTP API service."""
     from fastapi import FastAPI, HTTPException
     from pydantic import BaseModel
+    from contextlib import asynccontextmanager
     import uvicorn
-    
-    # FastAPI app for agent
-    agent_app = FastAPI(
-        title="Ingrid Agent API",
-        description="AI agent service for Ingrids Reisetjenester",
-        version="1.0.0"
-    )
     
     # Global agent instance - definert på modul nivå
     global agent_instance
     agent_instance = None
     
-    class QueryRequest(BaseModel):
-        query: str
-    
-    class QueryResponse(BaseModel):
-        success: bool
-        response: str
-        timestamp: str
-    
-    @agent_app.on_event("startup")
-    async def startup():
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup
         global agent_instance
         logger.info("Starter Ingrid Agent Service...")
         try:
@@ -383,13 +253,29 @@ def start_agent_api():
         except Exception as e:
             logger.error(f"Failed to start agent: {e}")
             agent_instance = None
-    
-    @agent_app.on_event("shutdown") 
-    async def shutdown():
-        global agent_instance
+        
+        yield
+        
+        # Shutdown
         if agent_instance:
             await agent_instance.close()
         logger.info("Ingrid Agent Service avsluttet")
+    
+    # FastAPI app for agent
+    agent_app = FastAPI(
+        title="Ingrid Agent API",
+        description="AI agent service for Ingrids Reisetjenester",
+        version="1.0.0",
+        lifespan=lifespan
+    )
+    
+    class QueryRequest(BaseModel):
+        query: str
+    
+    class QueryResponse(BaseModel):
+        success: bool
+        response: str
+        timestamp: str
     
     @agent_app.get("/health")
     async def health():

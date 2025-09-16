@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """
-MCP API Server
+MCP API Server - LAB01 VERSION
 
-HTTP API wrapper for MCP Travel Weather Server functionality.
-Exposes weather, routing, and trip planning as REST endpoints.
+Forenklet HTTP API med kun værfunksjonalitet for workshop.
+Deltagerne kan utvide denne med egne tools.
 """
 
 import asyncio
 import json
 import logging
 import os
-import smtplib
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -27,32 +24,20 @@ logger = logging.getLogger(__name__)
 
 # FastAPI app
 app = FastAPI(
-    title="MCP API Server",
-    description="HTTP API for travel weather services",
+    title="MCP API Server - Lab01",
+    description="Forenklet HTTP API for workshop med kun værfunksjonalitet",
     version="1.0.0"
 )
 
 # API konstanter
 WEATHER_API_BASE = "https://api.openweathermap.org/data/2.5"
 NOMINATIM_API_BASE = "https://nominatim.openstreetmap.org"
-OPENROUTE_API_BASE = "https://api.openrouteservice.org/v2"
 
 # Hent API nøkler fra miljøvariabler
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-OPENROUTE_API_KEY = os.getenv("OPENROUTE_API_KEY")
-
-# E-post konfigurasjon
-SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USERNAME)
 
 if not OPENWEATHER_API_KEY:
     logger.warning("OPENWEATHER_API_KEY ikke satt i miljøvariabler")
-
-if not SMTP_USERNAME or not SMTP_PASSWORD:
-    logger.warning("SMTP_USERNAME eller SMTP_PASSWORD ikke satt - e-post funksjonalitet vil ikke fungere")
 
 # HTTP klient
 http_client = httpx.AsyncClient()
@@ -60,24 +45,6 @@ http_client = httpx.AsyncClient()
 # Request/Response modeller
 class WeatherRequest(BaseModel):
     location: str
-
-class RouteRequest(BaseModel):
-    origin: str
-    destination: str
-    mode: str = "driving"
-
-class TripRequest(BaseModel):
-    origin: str
-    destination: str
-    travel_date: Optional[str] = None
-    mode: str = "driving"
-    days: int = 1
-
-class EmailRequest(BaseModel):
-    to_email: str
-    subject: str
-    content: str
-    content_type: str = "text"  # "text" eller "html"
 
 class MCPResponse(BaseModel):
     success: bool
@@ -93,122 +60,13 @@ class HealthResponse(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     """Initialiser ved oppstart."""
-    logger.info("Starting MCP API Server...")
+    logger.info("Starting MCP API Server Lab01...")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup ved nedstengning."""
     await http_client.aclose()
-    logger.info("MCP API Server avsluttet")
-
-# Helper funksjoner
-def format_route_instruction(instruction: str) -> str:
-    """Formater ruteinstruksjoner ved å legge til markdown bold formatering for viktige ord."""
-    import re
-    
-    # Først håndter eksisterende **tekst** markering (beholdes som den er)
-    # Ingen endring nødvendig for eksisterende markdown
-    
-    # Legg til markdown bold formatering for retninger
-    directions = ['Turn left', 'Turn right', 'Keep left', 'Keep right', 'Head north', 
-                  'Head south', 'Head east', 'Head west', 'Continue straight',
-                  'Enter the roundabout', 'left', 'right', 'straight', 'north', 'south', 'east', 'west']
-    
-    for direction in directions:
-        # Unngå å dobbel-formatere
-        pattern = r'\b(?<!\*\*)(' + re.escape(direction) + r')(?!\*\*)\b'
-        instruction = re.sub(pattern, r'**\1**', instruction, flags=re.IGNORECASE)
-    
-    # Legg til markdown bold for veinavnsprisser og viktige steder
-    street_patterns = [
-        r'\b(?<!\*\*)(\w+(?:gate|vei|veien|gata|gaten|plass|plassen|tunnel|tunnelen))(?!\*\*)\b',
-        r'\b(?<!\*\*)(E \d+)(?!\*\*)\b',  # Europavei
-        r'\b(?<!\*\*)(\d{3,4})(?!\*\*)\b'  # Fylkesvei nummer
-    ]
-    
-    for pattern in street_patterns:
-        instruction = re.sub(pattern, r'**\1**', instruction)
-    
-    return instruction
-
-def convert_markdown_to_html(text: str) -> str:
-    """Konverter markdown til HTML for e-post."""
-    import re
-    
-    # Konverter **bold** til <b>bold</b>
-    html = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-    
-    # Konverter nummererte lister
-    html = re.sub(r'^(\d+)\.\s+(.+)$', r'<div>\1. \2</div>', html, flags=re.MULTILINE)
-    
-    # Konverter linjeskift til <br>
-    html = html.replace('\n', '<br>\n')
-    
-    # Legg til HTML struktur
-    html = f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; }}
-        b {{ color: #2c3e50; }}
-        div {{ margin: 5px 0; }}
-    </style>
-</head>
-<body>
-{html}
-</body>
-</html>'''
-    
-    return html
-
-def convert_markdown_to_plain(text: str) -> str:
-    """Konverter markdown til lesbar ren tekst."""
-    import re
-    
-    # Fjern ** markering og gjør teksten med store bokstaver for synlighet
-    plain = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
-    
-    return plain
-
-async def send_email(to_email: str, subject: str, content: str, content_type: str = "text") -> Dict[str, Any]:
-    """Send e-post via SMTP."""
-    try:
-        if not SMTP_USERNAME or not SMTP_PASSWORD:
-            return {"error": "E-post konfigurasjon mangler. Kontakt administrator."}
-        
-        # Opprett e-post melding
-        msg = MIMEMultipart()
-        msg['From'] = FROM_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        # Legg til innhold
-        if content_type == "html":
-            # Konverter markdown til HTML for e-post
-            html_content = convert_markdown_to_html(content)
-            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
-        else:
-            # For vanlig tekst, konverter markdown til lesbar tekst
-            plain_content = convert_markdown_to_plain(content)
-            msg.attach(MIMEText(plain_content, 'plain', 'utf-8'))
-        
-        # Send e-post
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        
-        logger.info(f"E-post sendt til {to_email}")
-        return {
-            "success": True,
-            "message": f"E-post sendt til {to_email}",
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"E-post sending error: {e}")
-        return {"error": f"Kunne ikke sende e-post: {str(e)}"}
+    logger.info("MCP API Server Lab01 avsluttet")
 
 async def geocode_location(location: str) -> Optional[Dict[str, float]]:
     """Geocode en lokasjon til koordinater."""
@@ -230,24 +88,26 @@ async def geocode_location(location: str) -> Optional[Dict[str, float]]:
         result = data[0]
         return {
             "lat": float(result["lat"]),
-            "lon": float(result["lon"]),
-            "display_name": result.get("display_name", location)
+            "lon": float(result["lon"])
         }
         
     except Exception as e:
-        logger.error(f"Geocoding error for {location}: {e}")
+        logger.error(f"Geocoding error: {e}")
         return None
 
 async def get_weather_forecast(location: str) -> Dict[str, Any]:
-    """Hent værprognose for en lokasjon."""
+    """Hent værprognose for en destinasjon."""
     try:
-        # Geocode lokasjonen først
+        if not OPENWEATHER_API_KEY:
+            return {"error": "OpenWeather API-nøkkel mangler"}
+        
+        # Geocode lokasjon
         coords = await geocode_location(location)
         if not coords:
-            return {"error": f"Kunne ikke finne koordinater for {location}"}
+            return {"error": f"Kunne ikke finne lokasjon: {location}"}
         
-        # Hent værdata
-        params = {
+        # Hent nåværende vær
+        current_params = {
             "lat": coords["lat"],
             "lon": coords["lon"],
             "appid": OPENWEATHER_API_KEY,
@@ -255,208 +115,69 @@ async def get_weather_forecast(location: str) -> Dict[str, Any]:
             "lang": "no"
         }
         
-        # Hent current weather
-        current_response = await http_client.get(f"{WEATHER_API_BASE}/weather", params=params)
+        current_response = await http_client.get(f"{WEATHER_API_BASE}/weather", params=current_params)
         current_response.raise_for_status()
         current_data = current_response.json()
         
-        # Hent 5-day forecast
-        forecast_response = await http_client.get(f"{WEATHER_API_BASE}/forecast", params=params)
+        # Hent 5-dagers prognose
+        forecast_response = await http_client.get(f"{WEATHER_API_BASE}/forecast", params=current_params)
         forecast_response.raise_for_status()
         forecast_data = forecast_response.json()
         
-        return {
-            "location": coords["display_name"],
-            "coordinates": {"lat": coords["lat"], "lon": coords["lon"]},
-            "current": {
-                "temperature": current_data["main"]["temp"],
-                "feels_like": current_data["main"]["feels_like"],
-                "humidity": current_data["main"]["humidity"],
-                "pressure": current_data["main"]["pressure"],
-                "description": current_data["weather"][0]["description"],
-                "wind_speed": current_data.get("wind", {}).get("speed", 0),
-                "timestamp": datetime.fromtimestamp(current_data["dt"]).isoformat()
+        # Formater resultat
+        result = {
+            "location": {
+                "name": location,
+                "coordinates": [coords["lat"], coords["lon"]]
             },
-            "forecast": [
-                {
-                    "datetime": datetime.fromtimestamp(item["dt"]).isoformat(),
-                    "temperature": item["main"]["temp"],
-                    "description": item["weather"][0]["description"],
-                    "humidity": item["main"]["humidity"],
-                    "wind_speed": item.get("wind", {}).get("speed", 0)
-                }
-                for item in forecast_data["list"][:8]  # Next 24 hours (8 x 3-hour intervals)
-            ]
+            "current": {
+                "temperature": round(current_data["main"]["temp"]),
+                "feels_like": round(current_data["main"]["feels_like"]),
+                "humidity": current_data["main"]["humidity"],
+                "description": current_data["weather"][0]["description"],
+                "wind_speed": current_data["wind"]["speed"],
+                "timestamp": datetime.now().isoformat()
+            },
+            "forecast": []
         }
+        
+        # Prosesser 5-dagers prognose (gruppér etter dag)
+        daily_forecasts = {}
+        for item in forecast_data["list"]:
+            dt = datetime.fromtimestamp(item["dt"])
+            date_key = dt.strftime("%Y-%m-%d")
+            
+            if date_key not in daily_forecasts:
+                daily_forecasts[date_key] = {
+                    "date": date_key,
+                    "temp_min": item["main"]["temp"],
+                    "temp_max": item["main"]["temp"],
+                    "descriptions": [],
+                    "humidity": item["main"]["humidity"],
+                    "wind_speed": item["wind"]["speed"]
+                }
+            
+            daily_forecasts[date_key]["temp_min"] = min(daily_forecasts[date_key]["temp_min"], item["main"]["temp"])
+            daily_forecasts[date_key]["temp_max"] = max(daily_forecasts[date_key]["temp_max"], item["main"]["temp"])
+            daily_forecasts[date_key]["descriptions"].append(item["weather"][0]["description"])
+        
+        # Formater dagsprognose
+        for date_key in sorted(daily_forecasts.keys())[:5]:
+            day = daily_forecasts[date_key]
+            result["forecast"].append({
+                "date": day["date"],
+                "temp_min": round(day["temp_min"]),
+                "temp_max": round(day["temp_max"]),
+                "description": max(set(day["descriptions"]), key=day["descriptions"].count),
+                "humidity": day["humidity"],
+                "wind_speed": day["wind_speed"]
+            })
+        
+        return result
         
     except Exception as e:
         logger.error(f"Weather forecast error: {e}")
-        return {"error": f"Kunne ikke hente værprognose: {str(e)}"}
-
-async def get_travel_routes(origin: str, destination: str, mode: str = "driving") -> Dict[str, Any]:
-    """Hent reiseruter mellom to destinasjoner."""
-    try:
-        # Geocode begge lokasjoner
-        origin_coords = await geocode_location(origin)
-        dest_coords = await geocode_location(destination)
-        
-        if not origin_coords or not dest_coords:
-            return {"error": "Kunne ikke finne koordinater for en eller begge lokasjoner"}
-        
-        result = {
-            "origin": {"name": origin, "coordinates": origin_coords},
-            "destination": {"name": destination, "coordinates": dest_coords},
-            "mode": mode
-        }
-        
-        # Prøv OpenRouteService hvis API-nøkkel er tilgjengelig
-        if OPENROUTE_API_KEY:
-            try:
-                profile_map = {
-                    "driving": "driving-car",
-                    "walking": "foot-walking",
-                    "cycling": "cycling-regular"
-                }
-                profile = profile_map.get(mode, "driving-car")
-                
-                headers = {"Authorization": OPENROUTE_API_KEY}
-                data = {
-                    "coordinates": [
-                        [origin_coords["lon"], origin_coords["lat"]],
-                        [dest_coords["lon"], dest_coords["lat"]]
-                    ],
-                    "format": "json"
-                }
-                
-                response = await http_client.post(
-                    f"{OPENROUTE_API_BASE}/directions/{profile}/json",
-                    headers=headers,
-                    json=data
-                )
-                
-                if response.status_code == 200:
-                    route_data = response.json()
-                    route = route_data["routes"][0]
-                    
-                    result["route"] = {
-                        "distance_km": round(route["summary"]["distance"] / 1000, 1),
-                        "duration_hours": round(route["summary"]["duration"] / 3600, 1),
-                        "instructions": [format_route_instruction(step["instruction"]) for step in route["segments"][0]["steps"]]
-                    }
-                else:
-                    logger.warning(f"OpenRoute API returned status {response.status_code}")
-                    
-            except Exception as e:
-                logger.warning(f"OpenRoute API error: {e}")
-        
-        # Fallback til luftlinje-avstand
-        if "route" not in result:
-            # Beregn luftlinje avstand (haversine formel)
-            import math
-            
-            def haversine_distance(lat1, lon1, lat2, lon2):
-                R = 6371  # Earth radius in km
-                dlat = math.radians(lat2 - lat1)
-                dlon = math.radians(lon2 - lon1)
-                a = (math.sin(dlat/2)**2 + 
-                     math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * 
-                     math.sin(dlon/2)**2)
-                c = 2 * math.asin(math.sqrt(a))
-                return R * c
-            
-            air_distance = haversine_distance(
-                origin_coords["lat"], origin_coords["lon"],
-                dest_coords["lat"], dest_coords["lon"]
-            )
-            
-            # Estimat reisetidom basert på transportmåte
-            speed_map = {"driving": 80, "walking": 5, "cycling": 20}
-            avg_speed = speed_map.get(mode, 80)
-            estimated_duration = air_distance / avg_speed
-            
-            result["route"] = {
-                "distance_km": round(air_distance * 1.3, 1),  # Add 30% for actual road distance
-                "duration_hours": round(estimated_duration * 1.5, 1),  # Add 50% for realistic travel time
-                "note": "Estimert basert på luftlinje-avstand",
-                "air_distance_km": round(air_distance, 1)
-            }
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Travel routes error: {e}")
-        return {"error": f"Kunne ikke beregne rute: {str(e)}"}
-
-async def plan_trip(origin: str, destination: str, travel_date: Optional[str] = None, 
-                   mode: str = "driving", days: int = 1) -> Dict[str, Any]:
-    """Lag komplett reiseplan med vær og rute."""
-    try:
-        # Hent ruteinfo
-        route_info = await get_travel_routes(origin, destination, mode)
-        if "error" in route_info:
-            return route_info
-        
-        # Hent værinfo for destinasjon
-        weather_info = await get_weather_forecast(destination)
-        if "error" in weather_info:
-            logger.warning(f"Could not get weather for {destination}: {weather_info['error']}")
-            weather_info = {"note": "Værdata ikke tilgjengelig"}
-        
-        # Behandle reisedato
-        if travel_date:
-            try:
-                travel_dt = datetime.fromisoformat(travel_date.replace('Z', '+00:00'))
-            except:
-                travel_dt = datetime.now()
-        else:
-            travel_dt = datetime.now()
-        
-        result = {
-            "trip_summary": {
-                "origin": route_info["origin"]["name"],
-                "destination": route_info["destination"]["name"],
-                "travel_date": travel_dt.isoformat(),
-                "duration_days": days,
-                "transport_mode": mode
-            },
-            "route": route_info.get("route", {}),
-            "weather": weather_info,
-            "recommendations": []
-        }
-        
-        # Generer anbefalinger basert på vær og rute
-        recommendations = []
-        
-        if "current" in weather_info:
-            temp = weather_info["current"]["temperature"]
-            desc = weather_info["current"]["description"]
-            
-            if temp < 0:
-                recommendations.append("🧥 Pakk varme klær - det er under 0°C")
-            elif temp < 10:
-                recommendations.append("🧥 Pakk varm jakke - det er kaldt")
-            elif temp > 25:
-                recommendations.append("👕 Lett klær anbefales - det er varmt")
-            
-            if "regn" in desc.lower() or "rain" in desc.lower():
-                recommendations.append("☂️ Ta med paraply - regn i værmeldingen")
-            elif "snø" in desc.lower() or "snow" in desc.lower():
-                recommendations.append("❄️ Kjør forsiktig - snø i værmeldingen")
-        
-        if "route" in route_info and "duration_hours" in route_info["route"]:
-            duration = route_info["route"]["duration_hours"]
-            if duration > 8:
-                recommendations.append("🛌 Vurder overnatting underveis - lang reise")
-            elif duration > 4:
-                recommendations.append("⛽ Planlegg pause underveis")
-        
-        result["recommendations"] = recommendations
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Trip planning error: {e}")
-        return {"error": f"Kunne ikke planlegge reise: {str(e)}"}
+        return {"error": f"Kunne ikke hente væropplysninger: {str(e)}"}
 
 # API Endpoints
 @app.get("/health", response_model=HealthResponse)
@@ -464,7 +185,7 @@ async def health_check():
     """Helse sjekk."""
     return HealthResponse(
         status="healthy",
-        service="MCP API Server",
+        service="MCP API Server Lab01",
         timestamp=datetime.now().isoformat()
     )
 
@@ -485,68 +206,6 @@ async def get_weather(request: WeatherRequest):
         logger.error(f"Weather API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/routes", response_model=MCPResponse)
-async def get_routes(request: RouteRequest):
-    """Hent reiseruter mellom to destinasjoner."""
-    try:
-        logger.info(f"Route request: {request.origin} -> {request.destination}, mode: {request.mode}")
-        result = await get_travel_routes(request.origin, request.destination, request.mode)
-        
-        return MCPResponse(
-            success=True,
-            data=result,
-            timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        logger.error(f"Route API error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/plan", response_model=MCPResponse)
-async def plan_trip_endpoint(request: TripRequest):
-    """Lag komplett reiseplan med vær og rute."""
-    try:
-        logger.info(f"Trip plan request: {request.origin} -> {request.destination}")
-        result = await plan_trip(
-            request.origin, 
-            request.destination, 
-            request.travel_date, 
-            request.mode, 
-            request.days
-        )
-        
-        return MCPResponse(
-            success=True,
-            data=result,
-            timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        logger.error(f"Trip planning API error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/send-email", response_model=MCPResponse)
-async def send_email_endpoint(request: EmailRequest):
-    """Send e-post med reiseinfo eller annet innhold."""
-    try:
-        logger.info(f"Email request to: {request.to_email}")
-        result = await send_email(
-            request.to_email,
-            request.subject,
-            request.content,
-            request.content_type
-        )
-        
-        return MCPResponse(
-            success=True,
-            data=result,
-            timestamp=datetime.now().isoformat()
-        )
-        
-    except Exception as e:
-        logger.error(f"Email API error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 if __name__ == "__main__":
-    logger.info("Starting MCP Server API on port 8000...")
+    logger.info("Starting MCP Server API Lab01 on port 8000...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
