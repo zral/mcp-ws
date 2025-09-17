@@ -92,6 +92,8 @@ style: |
 - **Sikker** og **strukturert** kommunikasjon
 - **Utvidbar** arkitektur for alle verktøy
 
+#### https://modelcontextprotocol.io/specification/2025-06-18 + https://modelcontextprotocol.io/docs/getting-started/intro
+
 ---
 
 # MCP Fordeler
@@ -166,10 +168,37 @@ style: |
 ---
 
 <!-- _class: lead -->
-# 🛠️ Hands-on: Utforske koden
+# 🛠️ Etablere utviklingmiljø for workshop
 
 ---
 
+# Utviklingsmiljø for workshop
+
+## 1. Logg inn på din Github konto
+## 2. Lag en *fork* av https://github.com/zral/mcp
+## 3. Kryss av **Copy the lab01-clean branch only**
+## 4. Velg **Code / Codespaces / Create Codespace on...**
+## 5. Kopier **env.example** til **.env** i Codespace
+## Du har nå et fiks ferdig utviklingsmiljø!
+
+---
+
+# API nøkkel OpenAI GPT-4.1-mini og OpenWeather
+## Disse trenger du for å få tilgang til en LMM og værdata
+<p></p>
+
+## 1. Gå til https://github.com/marketplace/models
+## 2. Velg **OpenAI GPT-4.1-mini / Use this model / Create Personal Access Token**
+## 3. Kopier tokenet - husk - du kan _ikke_ få se det på nytt
+## 4. Åpne **.env** filen i Codespaces og legg tokenet inn i placeholderen for ```OPENAI_API_KEY```
+## 5. Register deg gratis på https://openweathermap.org/api og hent ut API Key
+## 6. Legg denne og inn i **.env** filen
+---
+
+<!-- _class: lead -->
+# 🛠️ Hands-on: Utforske koden
+
+---
 # Prosjektstruktur
 
 ```

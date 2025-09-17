@@ -1,55 +1,54 @@
-# Ingrids Reisetjenester - Mikroservice Arkitektur
+# MCP Travel Weather Server - LAB01
 
-## 📚 Dokumentasjon
+## Dokumentasjon
 
-**➡️ [Komplett Dokumentasjon](./docs/README.md)** - Start her for full oversikt
+**[Workshop Guide](./WORKSHOP.md)** - Komplett workshop dokumentasjon  
+**[Presentasjon](./workshop-presentation.html)** - Norsk workshop presentasjon
 
-### Viktige dokumenter:
-- **[MCP Arkitektur & Template Guide](./docs/mcp-architecture-template.md)** - Detaljert arkitektur og mal for å lage egne agenter
-- **[API Dokumentasjon](./docs/mcp-api-documentation.md)** - API referanse og verktøybeskrivelser  
-- **[Integrasjonsguide](./docs/mcp-integration-guide.md)** - Praktiske eksempler
-- **[Docker Deployment Guide](./docs/docker-deployment.md)** - Deployment og drift
-- **[OpenAPI Schema](./docs/mcp-openapi-schema.md)** - Teknisk spesifikasjon
+### Workshop ressurser:
+- **[Workshop Guide](./WORKSHOP.md)** - Detaljert lab guide for workshop deltagere
+- **[Presentasjon](./workshop-presentation.html)** - Slide deck for workshop
+- **[PowerPoint](./workshop-presentation.pptx)** - PowerPoint versjon av presentasjon
 
 ## Oversikt
 
-**Ingrids Reisetjenester** er en intelligent reiseplanlegging plattform bygget med mikroservice-arkitektur. Systemet kombinerer reisedata med værdata for å gi personlige reiseanbefalinger basert på værutsikter på destinasjonen.
+**MCP Travel Weather Server** er en forenklet implementasjon for workshop LAB01. Dette er en **læringsorientert versjon** som demonstrerer Model Context Protocol (MCP) grunnleggende konsepter med fokus på værdata.
 
-**Arkitektur**: Systemet er bygget som tre separate HTTP-baserte mikrotjenester som kommuniserer via REST API.
+**Arkitektur**: Systemet består av tre hovedkomponenter:
+- **Web Service**: Frontend brukergrensesnitt
+- **AI Agent**: OpenAI-basert agent som orkestrerer forespørsler
+- **MCP Server**: HTTP API med værfunksjonalitet
 
-## 🏗️ Mikroservice Arkitektur
+## Workshop Arkitektur (LAB01)
 
-### Tjenestearkitektur
+### Forenklet tjenestearkitektur
 ```
 ┌─────────────────┐    HTTP    ┌─────────────────┐    HTTP    ┌─────────────────┐
 │   Web Service   │ ─────────► │  Agent Service  │ ─────────► │  MCP Server     │
 │   (Port 8080)   │            │   (Port 8001)   │            │   (Port 8000)   │
 │                 │            │                 │            │                 │
-│ • Frontend UI   │            │ • AI Logic      │            │ • Tools/APIs    │
-│ • User Interface│            │ • OpenAI GPT-4o │            │ • Weather Data  │
-│ • Examples      │            │ • Conversation  │            │ • Route Calc    │
-│ • Health Checks │            │ • Memory        │            │ • Trip Planning │
+│ • Frontend UI   │            │ • AI Logic      │            │ • Weather Tool  │
+│ • User Interface│            │ • OpenAI GPT-4o │            │ • OpenWeatherMap│
+│ • Examples      │            │ • Conversation  │            │ • Geocoding     │
+│ • Health Checks │            │ • Memory        │            │ • Health Checks │
 └─────────────────┘            └─────────────────┘            └─────────────────┘
 ```
 
 ### 1. MCP Server (`services/mcp-server/`)
-**HTTP API for reiseverktøy** - Port 8000
-- `POST /weather` - Værprognose for destinasjoner  
-- `POST /routes` - Ruteberegning mellom steder
-- `POST /plan` - Komplett reiseplanlegging
+**HTTP API for værverktøy** - Port 8000
+- `POST /weather` - Værprognose for destinasjoner
 - `GET /health` - Helsesjekk
 
-**API-er som brukes:**
-- OpenWeatherMap for værdata
-- Nominatim (OpenStreetMap) for geocoding  
-- OpenRouteService for rute-beregning (med fallback algoritmer)
+**API som brukes:**
+- **OpenWeatherMap** for værdata
+- **Nominatim** (OpenStreetMap) for geocoding
 
 ### 2. Agent Service (`services/agent/`)
 **AI-orkestrering med OpenAI** - Port 8001
-- OpenAI GPT-4o for intelligent respons
+- OpenAI GPT-4o mini for intelligent respons
 - HTTP klient for MCP server kommunikasjon
 - Persistent SQLite database for samtalehistorikk
-- Function calling for verktøybruk
+- Function calling for værverktøy
 - `POST /query` - Prosesser brukerforespørsler
 - `GET /health` - Helsesjekk med agent status
 
@@ -64,7 +63,21 @@
 - `GET /examples` - Foreslåtte spørsmål
 - `GET /health` - Helsesjekk
 
-## 🚀 Kom i gang
+## Workshop Læringsmål
+
+Denne LAB01-versjonen er designet for å lære:
+- **MCP Protocol**: Hvordan bygge og bruke Model Context Protocol
+- **HTTP API**: Enkel REST API arkitektur
+- **Tool Integration**: Koble AI agent med eksterne verktøy
+- **OpenAI Function Calling**: Strukturert verktøybruk
+- **Docker Deployment**: Containerisert mikroservice deployment
+
+## Kom i gang
+
+### Forutsetninger
+Du trenger API nøkler for:
+- **OpenAI**: For GPT AI → [platform.openai.com](https://platform.openai.com/)
+- **OpenWeatherMap**: For værdata → [openweathermap.org/api](https://openweathermap.org/api)
 
 ### Docker Deployment (Anbefalt)
 ```bash
@@ -90,77 +103,45 @@ docker-compose ps
 
 ### Miljøvariabler
 ```bash
-# Kreves
+# Kreves for LAB01
 OPENAI_API_KEY=your_openai_api_key_here
 OPENWEATHER_API_KEY=your_openweather_api_key_here  
 
-# Valgfrie
-OPENROUTE_API_KEY=your_openroute_api_key_here # For bedre ruter
-
-# E-post konfigurasjon (for e-post funksjonalitet)
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password  # Gmail app-passord
-FROM_EMAIL=your-email@gmail.com
+# Service URLs (auto-konfigurert i Docker)
+MCP_SERVER_URL=http://mcp-server:8000
 ```
-- API nøklene deles av alle tjenester
-- E-post konfigurasjon aktiverer "📧 Send på e-post" funksjonaliteten
 
-## Funksjoner
+## Funksjoner (LAB01)
 
-### 🌤️ Værprognose
+### Værprognose
 - Detaljert værprognose for enhver destinasjon
-- 1-5 dagers prognoser
 - Temperatur, nedbør, vind og luftfuktighet
+- Basert på OpenWeatherMap API
 
-### 🗺️ Reiseruter  
-- Ruter og reiseinformasjon mellom destinasjoner
-- Reiseavstand og tidsestimater
-- Alternative transportmåter
-- Detaljerte navigasjonsinstruksjoner med bold formatering
-
-### 🧳 Reiseplanlegging
-- Kombinert vær- og reiseinformasjon
-- Smarte anbefalinger basert på værforhold
-- Optimal timing for reiser
-
-### 📧 E-post Integration
-- **Send reiseinfo direkte på e-post** med "📧 Send på e-post" knappen
-- Automatisk formatering med HTML og markdown styling
-- SMTP support via Gmail eller andre leverandører
-- Professional e-post design med bold veinavnsprisser og ruter
-
-### 🧠 Persistent Hukommelse
+### Persistent Hukommelse
 - Husker samtalehistorikk på tvers av sesjoner
 - SQLite database for lokal lagring
 - Administrering av flere samtalesesjoner
 
-## 🏗️ Systemarkitektur
+### Intelligent Dialog
+- OpenAI GPT-4o mini for naturlig språkforståelse
+- Function calling for strukturert verktøybruk
+- Kontekstbevisst samtaler
 
-Systemet bruker en modulær MCP (Model Context Protocol) arkitektur:
+## MCP Arkitektur
+
+Workshop LAB01 demonstrerer MCP (Model Context Protocol) arkitektur med tre hovedkomponenter:
 
 ```
-🌐 Web/CLI Interface → 🤖 AI Agent → 🔧 MCP Tools → 🌍 External APIs
+Web Service → AI Agent → MCP Weather Tool → OpenWeatherMap API
 ```
 
-- **MCP Server**: Rene verktøyfunksjoner (vær, ruter, planlegging)
-- **AI Agent**: OpenAI GPT-4o med Function Calling
-- **REST API**: HTTP grensesnitt for integrasjon
+- **Web Service**: Frontend brukergrensesnitt og API proxy
+- **AI Agent**: OpenAI GPT-4o mini med Function Calling
+- **MCP Server**: HTTP API med get_weather_forecast verktøy
 - **Memory**: Persistent samtalehukommelse
 
-> **💡 For detaljert arkitekturinformasjon, se [MCP Arkitektur & Template Guide](./docs/mcp-architecture-template.md)**
-
-## Forutsetninger
-
-### API Nøkler
-
-Du trenger API nøkler for:
-- **OpenWeatherMap**: For værdata → [openweathermap.org/api](https://openweathermap.org/api)
-- **OpenAI**: For GPT-4 AI → [platform.openai.com](https://platform.openai.com/)
-- **OpenRouteService**: For ruter (valgfri) → [openrouteservice.org](https://openrouteservice.org/)
-
-Sett disse i `.env` filen (kopier fra `.env.example`).
+> **For detaljert workshop guide, se [WORKSHOP.md](./WORKSHOP.md)**
 
 ### Python Avhengigheter (hvis ikke bruker Docker)
 ```bash
@@ -173,7 +154,7 @@ Systemet er optimalisert for Docker deployment med alle komponenter i separate c
 
 ### Forutsetninger
 - Docker og Docker Compose installert
-- API nøkler konfigurert
+- API nøkler konfigurert (se over)
 
 ### Rask start
 ```bash
@@ -185,7 +166,6 @@ cp .env.example .env
 # Rediger .env med dine API nøkler:
 # - OPENAI_API_KEY (kreves)
 # - OPENWEATHER_API_KEY (kreves)
-# - OPENROUTE_API_KEY (valgfri)
 
 # Bygg og start alle tjenester
 docker-compose up -d
@@ -195,8 +175,8 @@ docker-compose ps
 ```
 
 ### Tjenester som startes
-- **travel-weather-mcp-server**: MCP server (kjører på demand)
-- **travel-weather-agent**: CLI agent container (kjører i bakgrunnen)
+- **travel-weather-mcp-server**: MCP server med værverktøy
+- **travel-weather-agent**: AI agent service
 - **travel-weather-web**: Web interface på http://localhost:8080
 
 ### Bruk av tjenestene
@@ -204,21 +184,12 @@ docker-compose ps
 #### Web Interface
 Åpne http://localhost:8080 i nettleseren for enkel bruk.
 
-#### CLI Agent
-```bash
-# Enkelt spørsmål
-docker exec -it travel-weather-agent python simple_agent.py "Hvordan er været i Oslo i dag?"
-
-# Interaktiv modus
-docker exec -it travel-weather-agent python simple_agent.py
-```
-
 #### API Tilgang
 ```bash
 # REST API kall
 curl -X POST http://localhost:8080/query \
   -H "Content-Type: application/json" \
-  -d '{"query": "Planlegg en reise fra Oslo til Bergen i morgen"}'
+  -d '{"query": "Hvordan er været i Oslo i dag?"}'
 ```
 
 ### Manuell Docker start
@@ -227,11 +198,11 @@ curl -X POST http://localhost:8080/query \
 docker-compose up -d
 
 # Eller start kun spesifikke tjenester
-docker-compose up -d mcp-server agent-web
+docker-compose up -d mcp-server travel-agent
 
 # Se logfiler
 docker-compose logs -f mcp-server
-docker-compose logs -f agent-web
+docker-compose logs -f travel-agent
 
 # Stopp tjenester
 docker-compose down
@@ -239,28 +210,16 @@ docker-compose down
 
 ### Tilgjengelige tjenester
 - **Web Interface**: http://localhost:8080 - Enkel web-grensesnitt for agenten
-- **MCP Server**: Port 8001 - MCP server for andre klienter
-- **Agent Web API**: Port 8002 - REST API for agenten
-- **MCP Inspector**: http://localhost:5173 - Debugging (kun med `--profile debug`)
-
-### Testing med MCP Inspector
-```bash
-# Start med debug profil
-docker-compose --profile debug up -d
-
-# Gå til http://localhost:5173 for debugging
-```
+- **Agent API**: http://localhost:8001 - REST API for agenten
+- **MCP Server**: http://localhost:8000 - MCP server API
 
 ## Bruk
 
-### 🌐 Web Interface (Anbefalt)
+### Web Interface (Anbefalt)
 Gå til http://localhost:8080 i nettleseren din for et enkelt brukergrensesnitt.
 
-### 🐳 Docker Commands
+### Docker Commands
 ```bash
-# Interaktiv agent i terminal
-docker-compose exec travel-agent python simple_agent.py
-
 # Se alle kjørende tjenester
 docker-compose ps
 
@@ -268,83 +227,105 @@ docker-compose ps
 docker-compose restart mcp-server
 
 # Se logfiler live
-docker-compose logs -f agent-web
+docker-compose logs -f travel-agent
 ```
 
-### 🔍 Debugging
-```bash
-# Start MCP Inspector for debugging
-docker-compose --profile debug up mcp-inspector
-
-# Gå til http://localhost:5173
-```
-
-## API Endpoints
+## API Endpoints (LAB01)
 
 ### get_weather_forecast
-- **location**: Stedsnavn (f.eks. "Oslo, NO")
-- **days**: Antall dager (1-5)
+- **location**: Stedsnavn (f.eks. "Oslo, Norway")
+- **Returner**: Værprognose med temperatur, vind, fuktighet og beskrivelse
 
-### get_travel_routes
-- **origin**: Startpunkt
-- **destination**: Destinasjon
-- **mode**: Reisemåte ("driving", "walking", "bicycling", "transit")
+### Eksempel API kall
+```bash
+# Direkte til MCP server
+curl -X POST http://localhost:8000/weather \
+  -H "Content-Type: application/json" \
+  -d '{"location": "Oslo, Norway"}'
 
-### plan_trip
-- **origin**: Startpunkt
-- **destination**: Destinasjon
-- **travel_date**: Reisedato (YYYY-MM-DD)
-- **mode**: Reisemåte
+# Via Agent (anbefalt)
+curl -X POST http://localhost:8001/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Hvordan er været i Oslo?"}'
+```
 
 ## Sikkerhet
 
 - API nøkler lagres som miljøvariabler
 - Ingen sensitive data logges
 - Input validering på alle endpoints
-- Rate limiting gjennom API providers
+- Rate limiting gjennom OpenWeatherMap API
 
 ## Feilsøking
 
 ### Vanlige problemer
 
 1. **"API key not configured"**
-   - Sjekk at miljøvariabler er riktig satt
+   - Sjekk at miljøvariabler er riktig satt i `.env`
    - Verifiser at API nøklene er gyldige
 
 2. **"Location not found"**
    - Prøv mer spesifikke stedsnavn
    - Inkluder land (f.eks. "Oslo, Norway")
 
-3. **"No routes found"**
-   - Sjekk stavemåte på steder
-   - Prøv alternative reisemåter
+3. **Containerproblemer**
+   - Kjør `docker-compose down && docker-compose up -d`
+   - Sjekk logfiler med `docker-compose logs`
 
 ### Logging
-Serveren logger til stderr. For debugging:
 ```bash
-python mcp_server.py 2>debug.log
+# Se agent logfiler
+docker-compose logs -f travel-agent
+
+# Se MCP server logfiler
+docker-compose logs -f mcp-server
+
+# Se alle logfiler
+docker-compose logs -f
 ```
 
-## Utvikling
+## Workshop Utvidelser
 
-### Legge til nye verktøy
-1. Definer en ny funksjon med `@mcp.tool()` dekoratør
-2. Legg til dokumentasjon og type hints
-3. Implementer feilhåndtering
-4. Test med MCP Inspector
+LAB01 er designet for utvidelse. Deltagere kan legge til:
 
-### Testing
+### Nye MCP verktøy
+1. Definer en ny HTTP endpoint i `services/mcp-server/app.py`
+2. Legg til verktøyet i agent's tool liste i `services/agent/app.py`
+3. Test med web interface
+
+### Foreslåtte utvidelser
+- **Ruteplanlegging**: Legg til OpenRouteService API
+- **Hotell booking**: Integrer booking API
+- **Transport**: Legg til public transport API
+- **Oversettelse**: Legg til språkoversettelse
+
+> **Se [WORKSHOP.md](./WORKSHOP.md) for detaljerte instruksjoner**
+
+## Testing
+
+### Manual testing
 ```bash
-# Test med MCP Inspector
-npx @modelcontextprotocol/inspector python mcp_server.py
+# Test health endpoints
+curl http://localhost:8000/health
+curl http://localhost:8001/health
+curl http://localhost:8080/health
 
-# Test agent
-python -m pytest tests/
+# Test weather API
+curl -X POST http://localhost:8000/weather \
+  -H "Content-Type: application/json" \
+  -d '{"location": "Oslo, Norway"}'
 ```
 
 ## Lisens
 
 MIT License - se LICENSE fil for detaljer.
+
+## Workshop Support
+
+For workshop deltagere:
+- **Dokumentasjon**: [WORKSHOP.md](./WORKSHOP.md)
+- **Presentasjon**: [workshop-presentation.html](./workshop-presentation.html)
+- **Teknisk support**: Spør workshopleder
 
 ## Bidrag
 
