@@ -420,7 +420,7 @@ async def list_tools():
 
 ---
 
-# Labøvelse 2: Oppdater agent mapping
+# Labøvelse 2: Oppdater agent-mapping
 
 ### Steg 3: Legg til endpoint mapping i call_mcp_tool
 
@@ -461,7 +461,7 @@ curl -X POST "http://localhost:8001/query" \
 ## Forventet resultat første gang
 **Agenten sier den kun kan hjelpe med vær!** 😮
 
-Dette er fordi system-prompten begrenser verktøyene. 
+Dette er fordi system-prompten legger begrensninger på bruk av verktøy. 
 
 ---
 
@@ -685,7 +685,7 @@ def get_api_key(service: str) -> str:
 ## Skalerbarhet
 - **Lastbalansering** med flere agent instanser
 - **Database clustering** for samtale minne
-- **Caching** for ofte brukte verktøy resultater
+- **Caching** for ofte brukte verktøy-resultater
 
 ## Overvåkning
 - **Helse sjekker** og oppetid overvåkning
@@ -823,7 +823,7 @@ Lag en reiseplanlegging arbeidsflyt:
 ## 🌐 **Community**
 - Bli med i MCP utvikler community
 - Bidra til open source verktøy
-- Del dine implementasjoner
+- Del implementasjoner
 
 ---
 
@@ -860,12 +860,9 @@ Lag en reiseplanlegging arbeidsflyt:
 <!-- _class: lead -->
 # 🚀 Lykke til videre!
 
-## Gå ut og lag fantastiske AI agenter!
 
 ### Husk:
 - Start enkelt, iterer raskt
 - Sikkerhet først, alltid
 - Dokumentasjon er din venn
 - Community er her for å hjelpe
-
-**Måtte dine agenter være intelligente og dine verktøy være kraftige! 🤖✨**

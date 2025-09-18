@@ -10,7 +10,7 @@ Systemet består av tre isolerte mikrotjenester:
 
 ### Tjenestearkitektur
 ```
-┌─────────────────┐    HTTP     ┌─────────────────┐    HTTP     ┌─────────────────┐
+┌─────────────────┐    HTTP    ┌─────────────────┐    HTTP    ┌─────────────────┐
 │   Web Service   │ ─────────► │  Agent Service  │ ─────────► │  MCP Server     │
 │   (Port 8080)   │            │   (Port 8001)   │            │   (Port 8000)   │
 │ services/web/   │            │ services/agent/ │            │services/mcp-    │
