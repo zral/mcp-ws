@@ -1,15 +1,15 @@
-# API Dokumentasjon - Ingrids Reisetjenester
+# API Dokumentasjon - MCP Travel Weather Server
 
 ## Oversikt
 
-**Ingrids Reisetjenester** tilbyr tre HTTP-baserte API-er for komplett reiseplanlegging med værdata. Systemet er bygget som mikrotjenester med klare ansvarsområder og REST API-er.
+**MCP Travel Weather Server** tilbyr HTTP-baserte API-er for reiseplanlegging med værdata, implementert som en Model Context Protocol (MCP) kompatibel løsning med dynamisk tools discovery.
 
 ### 📚 Relatert Dokumentasjon
 
 - **[Mikroservice Arkitektur Guide](./microservice-architecture.md)** - Detaljert arkitekturguide  
 - **[Docker Deployment Guide](./docker-deployment.md)** - Deployment og drift
 - **[OpenAPI Schema](./mcp-openapi-schema.md)** - Teknisk API spesifikasjon
-- **[Integrasjonsguide](./mcp-integration-guide.md)** - Praktiske eksempler
+- **[MCP Integration Guide](./mcp-integration-guide.md)** - MCP Protocol implementasjon
 
 ## 🏗️ API Oversikt
 
@@ -18,8 +18,8 @@
 | Tjeneste | Port | Ansvar | Dokumentasjon |
 |----------|------|---------|---------------|
 | **Web Service** | 8080 | Frontend UI & Proxy | [Web API](#web-service-api) |
-| **Agent Service** | 8001 | AI Logic & Orkestrering | [Agent API](#agent-service-api) |  
-| **MCP Server** | 8000 | Verktøy & Eksterne API-er | [MCP API](#mcp-server-api) |
+| **Agent Service** | 8001 | AI Logic & Dynamisk Tools Loading | [Agent API](#agent-service-api) |  
+| **MCP Server** | 8000 | MCP Tools Manifest & Endpoints | [MCP API](#mcp-server-api) |
 
 ### Base URLs (Docker deployment)
 ```
@@ -28,6 +28,12 @@ Agent Service: http://localhost:8001
 MCP Server:    http://localhost:8000
 ```
 
+### MCP Protocol Features
+- **Dynamisk Tools Discovery**: Agent laster verktøy fra MCP server ved oppstart
+- **Tools Manifest**: MCP-kompatibel `/tools` endpoint  
+- **Intelligent Endpoint Mapping**: Eksplisitt og konvensjonsbasert routing
+- **HTTP Method Support**: GET, POST, PUT, DELETE routing
+
 ## 🌐 Web Service API
 
 **Port 8080** - Frontend og brukergrensesnitt
@@ -35,7 +41,7 @@ MCP Server:    http://localhost:8000
 ### GET /
 Hovedside med web-grensesnitt
 
-**Respons**: HTML side for Ingrids Reisetjenester
+**Respons**: HTML side for MCP Travel Weather Server
 
 ### POST /query
 Proxy brukerforespørsel til Agent Service
@@ -87,10 +93,19 @@ Web service helsesjekk
 
 ## 🤖 Agent Service API
 
-**Port 8001** - AI-orkestrering med OpenAI GPT-4o
+**Port 8001** - AI-orkestrering med dynamisk tools loading
+
+### Dynamisk Tools Discovery
+Agent laster verktøy fra MCP server ved oppstart og mapper endpoints intelligent.
+
+**Features**:
+- Automatisk tools discovery via MCP `/tools` manifest
+- Eksplisitt endpoint mapping basert på tools metadata
+- Konvensjonsbasert fallback mapping
+- HTTP method routing (GET, POST, PUT, DELETE)
 
 ### POST /query
-Prosesser brukerforespørsel med AI
+Prosesser brukerforespørsel med AI og dynamiske verktøy
 
 **Request Body**:
 ```json
@@ -118,21 +133,67 @@ Prosesser brukerforespørsel med AI
 ```
 
 ### GET /health
-Agent service helsesjekk
+Agent service helsesjekk med tools status
 
 **Response**:
 ```json
 {
   "status": "healthy",
-  "service": "Ingrid Agent",
+  "service": "MCP Travel Agent",
   "timestamp": "2025-09-14T21:45:00.000Z",
-  "agent_ready": true
+  "agent_ready": true,
+  "tools_loaded": 3,
+  "mcp_server_connected": true
 }
 ```
 
 ## 🛠️ MCP Server API
 
-**Port 8000** - Verktøy og eksterne API integrasjoner
+**Port 8000** - MCP Tools manifest og verktøy implementasjon
+
+### GET /tools
+**MCP Tools Manifest** - Eksponerer tilgjengelige verktøy i henhold til MCP spesifikasjon
+
+**Response**:
+```json
+{
+  "tools": [
+    {
+      "name": "get_weather_forecast",
+      "description": "Få værprognose for en gitt destinasjon",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "location": {"type": "string", "description": "Navn på sted"}
+        },
+        "required": ["location"]
+      },
+      "endpoint": "/weather",
+      "method": "POST"
+    },
+    {
+      "name": "ping",
+      "description": "Test tilkobling til MCP server",
+      "inputSchema": {
+        "type": "object", 
+        "properties": {
+          "message": {"type": "string", "description": "Melding å sende"}
+        },
+        "required": ["message"]
+      },
+      "endpoint": "/ping",
+      "method": "POST"
+    },
+    {
+      "name": "get_status", 
+      "description": "Hent server status informasjon",
+      "inputSchema": {"type": "object", "properties": {}},
+      "endpoint": "/status",
+      "method": "GET"
+    }
+  ]
+}
+```
 
 ### POST /weather
 Hent værprognose for destinasjon
@@ -165,15 +226,13 @@ Hent værprognose for destinasjon
 }
 ```
 
-### POST /routes
-Beregn rute mellom destinasjoner
+### POST /ping
+Test tilkobling til MCP server
 
 **Request Body**:
 ```json
 {
-  "origin": "Oslo",
-  "destination": "Bergen", 
-  "mode": "driving"
+  "message": "Hello from agent!"
 }
 ```
 
@@ -182,11 +241,34 @@ Beregn rute mellom destinasjoner
 {
   "success": true,
   "data": {
-    "origin": {"name": "Oslo", "coordinates": {...}},
-    "destination": {"name": "Bergen", "coordinates": {...}},
-    "mode": "driving",
-    "route": {
-      "distance_km": 463.2,
+    "message": "Pong! Hello from agent!",
+    "timestamp": "2025-09-14T21:45:00.000Z",
+    "server_status": "healthy"
+  }
+}
+```
+
+### GET /status
+Hent server status informasjon
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "service": "MCP Travel Weather Server",
+    "version": "1.0.0", 
+    "status": "healthy",
+    "uptime_seconds": 12345,
+    "tools_available": 3,
+    "external_apis": {
+      "openweather": "connected",
+      "nominatim": "connected"
+    },
+    "timestamp": "2025-09-14T21:45:00.000Z"
+  }
+}
+```
       "duration_hours": 7.2,
       "instructions": [...]
     }

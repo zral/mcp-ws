@@ -1,10 +1,10 @@
-# Mikroservice Arkitektur Guide
+# Mikroservice Arkitektur Guide - MCP Protocol
 
 ## Oversikt
 
-**Ingrids Reisetjenester** er bygget med en moderne mikroservice-arkitektur bestående av tre HTTP-baserte tjenester. Denne arkitekturen sikrer skalerbarhet, vedlikeholdbarhet og enkel deployment.
+**MCP Travel Weather Server** er bygget med Model Context Protocol (MCP) kompatibel mikroservice-arkitektur. Systemet består av tre HTTP-baserte tjenester med dynamisk tools discovery og intelligent endpoint mapping.
 
-## 🏗️ Arkitekturdiagram
+## 🏗️ MCP Arkitekturdiagram
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
@@ -20,29 +20,32 @@
 │  │   Port 8080     │  │   (HTML/JS)     │  │   (CSS/Images)  │                │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
 │                                  │                                              │
-│                                  │ HTTP Client                                  │
+│                                  │ HTTP Proxy                                   │
 └──────────────────────────────────┼──────────────────────────────────────────────┘
                                    │ HTTP :8001
 ┌──────────────────────────────────▼──────────────────────────────────────────────┐
-│                        Agent Service                                           │
+│                        Agent Service (MCP Client)                              │
 │                      (services/agent/)                                         │
 │                                                                                 │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                │
-│  │   FastAPI App   │  │   OpenAI GPT-4o │  │ Conversation    │                │
-│  │   Port 8001     │  │   Integration   │  │ Memory (SQLite) │                │
+│  │   FastAPI App   │  │   OpenAI GPT-4o │  │ Dynamic Tools   │                │
+│  │   Port 8001     │  │   Integration   │  │ Loading & Mapping│               │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
-│                                  │                                              │
-│                                  │ HTTP Client                                  │
-└──────────────────────────────────┼──────────────────────────────────────────────┘
-                                   │ HTTP :8000
-┌──────────────────────────────────▼──────────────────────────────────────────────┐
-│                        MCP Server                                              │
+│            │                               │                                   │
+│            │ Startup Discovery             │ Runtime Calls                     │
+│            │ GET /tools                    │ POST|GET|PUT|DELETE               │
+└────────────┼───────────────────────────────┼───────────────────────────────────┘
+             │                               │ 
+             │                               │ HTTP :8000
+┌────────────▼───────────────────────────────▼───────────────────────────────────┐
+│                     MCP Server (MCP Protocol Compliant)                        │
 │                    (services/mcp-server/)                                      │
 │                                                                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│  │   FastAPI App   │  │   Weather API   │  │   Route API     │  │   Email SMTP    │
-│  │   Port 8000     │  │   (OpenWeather) │  │ (OpenRouteService)│ │   (Gmail/etc)   │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘  └─────────────────┘
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐
+│  │   FastAPI App   │  │  Tools Manifest │  │   Weather API   │  │  HTTP Router│
+│  │   Port 8000     │  │  (/tools)       │  │   (OpenWeather) │  │ (GET/POST/  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │ PUT/DELETE) │
+│                                                                  └─────────────┘
 │                                  │                                              │
 │                                  │ External API Calls                          │
 └──────────────────────────────────┼──────────────────────────────────────────────┘
@@ -51,13 +54,23 @@
 │                          External APIs                                         │
 │                                                                                 │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐                │
-│  │ OpenWeatherMap  │  │ OpenRouteService│  │   Nominatim     │                │
-│  │   (Weather)     │  │    (Routes)     │  │  (Geocoding)    │                │
+│  │ OpenWeatherMap  │  │  Nominatim OSM  │  │   Other APIs    │                │
+│  │   (Weather)     │  │  (Geocoding)    │  │   (Extensible)  │                │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘                │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 📦 Tjenestebeskrivelser
+## � MCP Protocol Dataflow
+
+```
+1. Agent Startup → GET /tools (MCP Discovery)
+2. User Request → Agent loads appropriate tool
+3. Agent → Intelligent endpoint mapping 
+4. MCP Server → Execute tool → External API
+5. Response chain back to user
+```
+
+## �📦 Tjenestebeskrivelser
 
 ### 1. Web Service (`services/web/`)
 
@@ -87,14 +100,20 @@ GET  /health     - Helsesjekk med agent tilkobling status
 
 ### 2. Agent Service (`services/agent/`)
 
-**Ansvar**: AI-orkestrering og beslutningslogikk
+**Ansvar**: AI-orkestrering med MCP Protocol klient
 **Port**: 8001  
-**Teknologi**: FastAPI + OpenAI GPT-4o + SQLite + HTTPX
+**Teknologi**: FastAPI + OpenAI GPT-4o + SQLite + HTTPX + MCP Client
+
+#### MCP Features:
+- **Dynamisk Tools Discovery**: Laster verktøy fra MCP server ved oppstart
+- **Intelligent Endpoint Mapping**: Eksplisitt og konvensjonsbasert routing  
+- **HTTP Method Support**: GET, POST, PUT, DELETE routing
+- **Tools Caching**: Lagrer tools manifest for performance
 
 #### Funksjoner:
-- OpenAI GPT-4o integrasjon med function calling
+- OpenAI GPT-4o integrasjon med dynamic function calling
 - Persistent samtalehistorikk med SQLite database
-- HTTP klient for MCP Server kommunikasjon
+- MCP protokoll klient for tools discovery
 - Intelligent verktøybruk basert på brukerforespørsler
 - Kontekstuell respons generering
 
@@ -112,23 +131,29 @@ GET  /health     - Helsesjekk med agent readiness status
 
 ### 3. MCP Server (`services/mcp-server/`)
 
-**Ansvar**: Verktøy-API for reise- og værdata
+**Ansvar**: MCP Protocol server med tools manifest
 **Port**: 8000
-**Teknologi**: FastAPI + HTTPX + Eksterne API-er
+**Teknologi**: FastAPI + HTTPX + Eksterne API-er + MCP Protocol
+
+#### MCP Protocol Features:
+- **Tools Manifest**: `/tools` endpoint følger MCP spesifikasjon
+- **HTTP Method Routing**: GET, POST, PUT, DELETE support
+- **Endpoint Metadata**: Eksplisitt endpoint og method informasjon
+- **Schema Validation**: JSON schema for alle verktøy
 
 #### Funksjoner:
 - Værprognose via OpenWeatherMap API
-- Ruteberegning via OpenRouteService API (med fallback)
 - Geocoding via Nominatim API
-- Komplett reiseplanlegging med kombinerte data
-- **E-post leveranse** med SMTP support og HTML-formatering
-- Robust feilhåndtering og fallback algoritmer
+- Server status og ping verktøy
+- Robust feilhåndtering og validering
 
 #### API Endpoints:
 ```
+GET  /tools        - MCP tools manifest (følger MCP spec)
 POST /weather      - Hent værprognose for lokasjon
-POST /routes       - Beregn rute mellom to destinasjoner  
-POST /plan         - Lag komplett reiseplan med vær og rute
+POST /ping         - Test tilkobling til server
+GET  /status       - Server status informasjon
+GET  /health       - Helsesjekk
 POST /send-email   - Send reiseinfo på e-post med formatering
 GET  /health       - Helsesjekk
 ```

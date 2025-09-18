@@ -49,48 +49,118 @@ class MicroserviceAgent:
         # HTTP klient for MCP kall
         self.http_client = httpx.AsyncClient()
         
-        # Definer verktøy for Mistral AI
-        self.tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather_forecast",
-                    "description": "Hent værprognose for en destinasjon",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "Navn på by eller lokasjon"
-                            }
-                        },
-                        "required": ["location"]
-                    }
-                }
-            }
-        ]
+        # Tools vil bli hentet dynamisk fra MCP server
+        self.tools = []
+        # Tool endpoint mapping lagres separat
+        self.tool_endpoints = {}
         
         logger.info("MicroserviceAgent initialisert")
     
+    async def load_tools_from_mcp_server(self):
+        """
+        Hent tilgjengelige tools fra MCP server dynamisk.
+        Konverterer fra MCP format til OpenAI function calling format og lagrer endpoint info.
+        """
+        try:
+            logger.info(f"Henter tools fra MCP server: {self.mcp_server_url}")
+            response = await self.http_client.get(f"{self.mcp_server_url}/tools")
+            response.raise_for_status()
+            
+            mcp_tools = response.json()
+            tools_list = mcp_tools.get("tools", [])
+            
+            # Konverter fra MCP format til OpenAI function calling format
+            converted_tools = []
+            tool_endpoints = {}
+            
+            for tool in tools_list:
+                openai_tool = {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "parameters": tool["inputSchema"]
+                    }
+                }
+                converted_tools.append(openai_tool)
+                
+                # Lagre endpoint-informasjon
+                if "endpoint" in tool:
+                    tool_endpoints[tool["name"]] = {
+                        "endpoint": tool["endpoint"],
+                        "method": tool.get("method", "POST")
+                    }
+            
+            self.tools = converted_tools
+            self.tool_endpoints = tool_endpoints
+            logger.info(f"Lastet {len(self.tools)} tools fra MCP server med {len(self.tool_endpoints)} endpoint mappings")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Kunne ikke hente tools fra MCP server: {e}")
+            return False
+    
+    def _map_tool_to_endpoint(self, tool_name: str) -> str:
+        """
+        Map tool name to MCP server endpoint based on convention.
+        Dette unngår hardkoding av endpoints i agent-koden.
+        """
+        # Konvensjon: get_weather_forecast -> /weather
+        # Konvensjon: get_random_fact -> /fact
+        # Konvensjon: get_news -> /news
+        tool_to_endpoint = {
+            "get_weather_forecast": "/weather",
+            "get_random_fact": "/fact",
+            "get_news": "/news"
+        }
+        
+        # Standard fallback: remove 'get_' prefix if present
+        if tool_name in tool_to_endpoint:
+            return tool_to_endpoint[tool_name]
+        
+        # Fallback: derive endpoint from tool name
+        if tool_name.startswith("get_"):
+            endpoint_name = tool_name[4:]  # Remove 'get_' prefix
+            return f"/{endpoint_name}"
+        
+        # Last resort: use tool name as-is
+        return f"/{tool_name}"
+    
     async def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """
-        Kall MCP server via HTTP i stedet for direkte funksjoner.
+        Kall MCP server via HTTP basert på endpoint info fra tools manifest.
+        Bruker eksplisitt endpoint-mapping hvis tilgjengelig, ellers fallback til konvensjon.
         """
         try:
             logger.info(f"Kaller MCP server: {tool_name} med args: {arguments}")
             
-            # Map tool name til MCP endpoint - kun weather i lab01
-            if tool_name == "get_weather_forecast":
-                endpoint = "/weather"
-                payload = {
-                    "location": arguments["location"]
-                }
+            # Først: bruk eksplisitt endpoint info fra tools manifest
+            if tool_name in self.tool_endpoints:
+                endpoint_info = self.tool_endpoints[tool_name]
+                endpoint = endpoint_info["endpoint"]
+                method = endpoint_info.get("method", "POST")
+                logger.info(f"Bruker eksplisitt endpoint mapping: {tool_name} -> {method} {endpoint}")
             else:
-                raise ValueError(f"Ukjent verktøy: {tool_name}")
+                # Fallback: bruk konvensjonbasert mapping
+                endpoint = self._map_tool_to_endpoint(tool_name)
+                method = "POST"
+                logger.warning(f"Ingen eksplisitt endpoint for {tool_name}, bruker fallback: {endpoint}")
             
             # Gjør HTTP kall til MCP server
             url = f"{self.mcp_server_url}{endpoint}"
-            response = await self.http_client.post(url, json=payload)
+            
+            # Støtt forskjellige HTTP metoder
+            if method.upper() == "GET":
+                response = await self.http_client.get(url, params=arguments)
+            elif method.upper() == "POST":
+                response = await self.http_client.post(url, json=arguments)
+            elif method.upper() == "PUT":
+                response = await self.http_client.put(url, json=arguments)
+            elif method.upper() == "DELETE":
+                response = await self.http_client.delete(url, params=arguments)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+                
             response.raise_for_status()
             
             result = response.json()
@@ -123,7 +193,7 @@ class MicroserviceAgent:
             # Hent samtalehistorikk
             history = self.memory.get_conversation_history(self.current_session_id)
             
-            # Bygg meldinger for Mistral AI
+            # Bygg meldinger for OpenAI
             messages = [
                 {
                     "role": "system",
@@ -217,6 +287,12 @@ MERK: Dette er en forenklet versjon. Brukere kan spørre om andre tjenester, men
 async def main():
     """CLI interface for testing."""
     agent = MicroserviceAgent()
+    
+    # Last inn tools fra MCP server
+    tools_loaded = await agent.load_tools_from_mcp_server()
+    if not tools_loaded:
+        logger.warning("Kunne ikke laste tools fra MCP server, fortsetter uten tools")
+    
     agent.start_new_session("Test Session")
     
     while True:
@@ -247,6 +323,12 @@ def start_agent_api():
         logger.info("Starter Ingrid Agent Service...")
         try:
             agent_instance = MicroserviceAgent()
+            
+            # Last inn tools fra MCP server
+            tools_loaded = await agent_instance.load_tools_from_mcp_server()
+            if not tools_loaded:
+                logger.warning("Kunne ikke laste tools fra MCP server, fortsetter uten tools")
+            
             agent_instance.start_new_session("HTTP API Session")
             logger.info("Ingrid Agent Service startet")
             logger.info(f"Agent instance created: {agent_instance is not None}")

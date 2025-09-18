@@ -35,20 +35,27 @@
 ```
 
 ### 1. MCP Server (`services/mcp-server/`)
-**HTTP API for værverktøy** - Port 8000
+**HTTP API med dynamisk tools manifest** - Port 8000
+- `GET /tools` - MCP tools manifest (følger MCP spesifikasjon)
 - `POST /weather` - Værprognose for destinasjoner
+- `POST /ping` - Ping test verktøy
+- `GET /status` - Server status verktøy
 - `GET /health` - Helsesjekk
+
+**MCP Tools Manifest:**
+Serveren eksponerer tilgjengelige verktøy via `/tools` endepunkt i henhold til MCP spesifikasjonen, inkludert navn, beskrivelse, input schema og endpoint informasjon.
 
 **API som brukes:**
 - **OpenWeatherMap** for værdata
 - **Nominatim** (OpenStreetMap) for geocoding
 
 ### 2. Agent Service (`services/agent/`)
-**AI-orkestrering med OpenAI** - Port 8001
+**AI-orkestrering med dynamisk tools loading** - Port 8001
 - OpenAI GPT-4o mini for intelligent respons
-- HTTP klient for MCP server kommunikasjon
+- Dynamisk lasting av verktøy fra MCP server ved oppstart
+- HTTP klient med intelligent endpoint mapping
 - Persistent SQLite database for samtalehistorikk
-- Function calling for værverktøy
+- Eksplisitt og konvensjonsbasert endpoint mapping
 - `POST /query` - Prosesser brukerforespørsler
 - `GET /health` - Helsesjekk med agent status
 
@@ -66,11 +73,12 @@
 ## Workshop Læringsmål
 
 Denne LAB01-versjonen er designet for å lære:
-- **MCP Protocol**: Hvordan bygge og bruke Model Context Protocol
-- **HTTP API**: Enkel REST API arkitektur
-- **Tool Integration**: Koble AI agent med eksterne verktøy
-- **OpenAI Function Calling**: Strukturert verktøybruk
+- **MCP Protocol**: Implementering av Model Context Protocol med dynamisk tools discovery
+- **HTTP API**: REST API arkitektur med intelligent endpoint mapping
+- **Tools Integration**: Dynamisk kobling av AI agent med MCP server verktøy
+- **OpenAI Function Calling**: Strukturert verktøybruk med dynamic tool loading
 - **Docker Deployment**: Containerisert mikroservice deployment
+- **MCP Spesifikasjon**: Følge MCP standarder for tools manifest og endpoint eksponering
 
 ## Kom i gang
 
@@ -113,10 +121,22 @@ MCP_SERVER_URL=http://mcp-server:8000
 
 ## Funksjoner (LAB01)
 
+### Dynamisk Tools Discovery
+- MCP server eksponerer tilgjengelige verktøy via `/tools` endpoint
+- Agent laster verktøy dynamisk ved oppstart
+- Intelligent mapping mellom verktøy og HTTP endpoints
+- Støtte for eksplisitt endpoint spesifikasjon og konvensjonsbasert fallback
+
 ### Værprognose
 - Detaljert værprognose for enhver destinasjon
 - Temperatur, nedbør, vind og luftfuktighet
 - Basert på OpenWeatherMap API
+
+### MCP Verktøy
+- **get_weather_forecast**: Hent værprognose for destinasjoner
+- **ping**: Test verktøy for tilkoblingskontroll
+- **get_status**: Server status informasjon
+- Alle verktøy følger MCP spesifikasjon
 
 ### Persistent Hukommelse
 - Husker samtalehistorikk på tvers av sesjoner
@@ -125,21 +145,31 @@ MCP_SERVER_URL=http://mcp-server:8000
 
 ### Intelligent Dialog
 - OpenAI GPT-4o mini for naturlig språkforståelse
-- Function calling for strukturert verktøybruk
+- Dynamic function calling basert på MCP tools manifest
 - Kontekstbevisst samtaler
 
 ## MCP Arkitektur
 
-Workshop LAB01 demonstrerer MCP (Model Context Protocol) arkitektur med tre hovedkomponenter:
+Workshop LAB01 demonstrerer MCP (Model Context Protocol) arkitektur med dynamisk tools discovery:
 
 ```
-Web Service → AI Agent → MCP Weather Tool → OpenWeatherMap API
+Web Service → AI Agent ←→ MCP Server → External APIs
+             ↓ (dynamic)   ↓ (/tools)
+         Tools Loading  Tools Manifest
 ```
 
+**Arkitektur komponenter:**
 - **Web Service**: Frontend brukergrensesnitt og API proxy
-- **AI Agent**: OpenAI GPT-4o mini med Function Calling
-- **MCP Server**: HTTP API med get_weather_forecast verktøy
+- **AI Agent**: OpenAI GPT-4o mini med dynamisk tools loading og intelligent endpoint mapping
+- **MCP Server**: HTTP API som eksponerer MCP tools manifest og implementerer verktøy
+- **Tools Manifest**: MCP-kompatibel manifest med endpoint og method informasjon
 - **Memory**: Persistent samtalehukommelse
+
+**MCP Protocol Implementation:**
+- MCP server følger MCP spesifikasjon for tools eksponering
+- Agent implementerer dynamisk tools discovery ved oppstart
+- Intelligent endpoint mapping med både eksplisitt og konvensjonsbasert støtte
+- HTTP method routing (GET, POST, PUT, DELETE) basert på tools manifest
 
 > **For detaljert workshop guide, se [WORKSHOP.md](./WORKSHOP.md)**
 
@@ -232,18 +262,38 @@ docker-compose logs -f travel-agent
 
 ## API Endpoints (LAB01)
 
-### get_weather_forecast
+### MCP Tools Discovery
+- **GET /tools**: Hent MCP tools manifest med alle tilgjengelige verktøy
+- **Returner**: JSON array med verktøy inkludert navn, beskrivelse, input schema, endpoint og HTTP method
+
+### MCP Verktøy
+
+#### get_weather_forecast
 - **location**: Stedsnavn (f.eks. "Oslo, Norway")
+- **Endpoint**: POST /weather
 - **Returner**: Værprognose med temperatur, vind, fuktighet og beskrivelse
+
+#### ping
+- **message**: Melding å sende til ping verktøy
+- **Endpoint**: POST /ping
+- **Returner**: Bekreftelses-melding
+
+#### get_status
+- **Ingen parametere kreves**
+- **Endpoint**: GET /status
+- **Returner**: Server status informasjon
 
 ### Eksempel API kall
 ```bash
-# Direkte til MCP server
+# Hent tools manifest fra MCP server
+curl http://localhost:8000/tools
+
+# Direkte verktøy kall til MCP server
 curl -X POST http://localhost:8000/weather \
   -H "Content-Type: application/json" \
   -d '{"location": "Oslo, Norway"}'
 
-# Via Agent (anbefalt)
+# Via Agent med dynamisk tools loading (anbefalt)
 curl -X POST http://localhost:8001/query \
   -H "Content-Type: application/json" \
   -d '{"query": "Hvordan er været i Oslo?"}'
@@ -290,8 +340,11 @@ LAB01 er designet for utvidelse. Deltagere kan legge til:
 
 ### Nye MCP verktøy
 1. Definer en ny HTTP endpoint i `services/mcp-server/app.py`
-2. Legg til verktøyet i agent's tool liste i `services/agent/app.py`
-3. Test med web interface
+2. Legg til verktøyet i tools array med endpoint og method informasjon
+3. Agent vil automatisk laste det nye verktøyet ved restart via `/tools` manifest
+4. Test med web interface
+
+**Merk**: Agent laster verktøy dynamisk, så ingen hardkoding kreves i agent koden.
 
 ### Foreslåtte utvidelser
 - **Ruteplanlegging**: Legg til OpenRouteService API
@@ -310,10 +363,19 @@ curl http://localhost:8000/health
 curl http://localhost:8001/health
 curl http://localhost:8080/health
 
-# Test weather API
+# Test MCP tools manifest
+curl http://localhost:8000/tools
+
+# Test alle MCP verktøy
 curl -X POST http://localhost:8000/weather \
   -H "Content-Type: application/json" \
   -d '{"location": "Oslo, Norway"}'
+
+curl -X POST http://localhost:8000/ping \
+  -H "Content-Type: application/json" \
+  -d '{"message": "test"}'
+
+curl http://localhost:8000/status
 ```
 
 ## Lisens

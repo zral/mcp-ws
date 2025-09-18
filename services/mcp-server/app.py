@@ -189,6 +189,93 @@ async def health_check():
         timestamp=datetime.now().isoformat()
     )
 
+@app.get("/tools")
+async def list_tools():
+    """
+    List available tools according to MCP specification.
+    Returns tools in MCP-compatible format.
+    https://modelcontextprotocol.io/specification/2025-06-18/server/tools
+    """
+    tools = [
+        {
+            "name": "get_weather_forecast",
+            "description": "Hent værprognose for en destinasjon",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "Navn på by eller lokasjon"
+                    }
+                },
+                "required": ["location"]
+            },
+            "endpoint": "/weather",
+            "method": "POST"
+        },
+        {
+            "name": "get_ping",
+            "description": "Test verktøy som returnerer en enkel ping respons",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Melding som skal echoes tilbake",
+                        "default": "ping"
+                    }
+                }
+            },
+            "endpoint": "/ping",
+            "method": "POST"
+        },
+        {
+            "name": "get_server_status",
+            "description": "Hent status informasjon om MCP serveren",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            },
+            "endpoint": "/status",
+            "method": "GET"
+        }
+    ]
+    
+    return {
+        "tools": tools
+    }
+
+class PingRequest(BaseModel):
+    message: str = "ping"
+
+@app.get("/status")
+async def get_server_status():
+    """Hent status informasjon om MCP serveren."""
+    return {
+        "success": True,
+        "data": {
+            "server": "MCP API Server Lab01",
+            "version": "1.0.0",
+            "status": "running",
+            "timestamp": datetime.now().isoformat(),
+            "available_tools": len([tool for tool in [
+                {"name": "get_weather_forecast"},
+                {"name": "get_ping"},
+                {"name": "get_server_status"}
+            ]])
+        },
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/ping", response_model=MCPResponse)
+async def ping(request: PingRequest):
+    """Test endpoint som returnerer en enkel ping respons."""
+    return MCPResponse(
+        success=True,
+        data={"message": f"pong: {request.message}", "timestamp": datetime.now().isoformat()},
+        timestamp=datetime.now().isoformat()
+    )
+
 @app.post("/weather", response_model=MCPResponse)
 async def get_weather(request: WeatherRequest):
     """Hent værprognose for en destinasjon."""

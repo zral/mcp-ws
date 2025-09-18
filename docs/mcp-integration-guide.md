@@ -1,104 +1,186 @@
 # MCP Server Integration Guide
 
-## Quick Start
+## Oversikt
+
+Denne guiden viser hvordan du integrerer med MCP Travel Weather Server som følger Model Context Protocol (MCP) spesifikasjon med dynamisk tools discovery.
 
 > **📋 For detaljert arkitektur og template for å lage egne MCP agenter, se [MCP Arkitektur & Template Guide](./mcp-architecture-template.md)**
 
-### Direkte Python Import (Anbefalt)
+## MCP Protocol Features
+
+### Dynamisk Tools Discovery
+MCP serveren eksponerer tilgjengelige verktøy via `/tools` endpoint i henhold til MCP spesifikasjon:
 
 ```python
-# Importer MCP funksjoner direkte
-from mcp_server import get_weather_forecast, get_travel_routes, plan_trip
-import asyncio
+import requests
 
-async def example_usage():
-    # Hent værprognose
-    weather = await get_weather_forecast("Oslo", days=3)
-    print(f"Vær i Oslo: {weather}")
-    
-    # Beregn reiserute  
-    route = await get_travel_routes("Oslo", "Bergen", mode="driving")
-    print(f"Rute Oslo-Bergen: {route}")
-    
-    # Lag komplett reiseplan
-    trip = await plan_trip("Oslo", "Stavanger", travel_date="2025-09-20")
-    print(f"Reiseplan: {trip}")
+# Hent tools manifest fra MCP server
+def load_tools_from_mcp():
+    response = requests.get("http://localhost:8000/tools")
+    tools_data = response.json()
+    return tools_data["tools"]
 
-# Kjør eksempel
-asyncio.run(example_usage())
+# Eksempel output
+tools = load_tools_from_mcp()
+print(f"Tilgjengelige verktøy: {len(tools)}")
+for tool in tools:
+    print(f"- {tool['name']}: {tool['description']} ({tool['method']} {tool['endpoint']})")
 ```
 
 ### OpenAI Function Calling Integration
 
 ```python
 import openai
-from mcp_server import get_weather_forecast, get_travel_routes, plan_trip
+import requests
 
-class TravelWeatherAgent:
-    def __init__(self, openai_api_key):
+class MCPTravelAgent:
+    def __init__(self, openai_api_key, mcp_server_url="http://localhost:8000"):
         self.client = openai.OpenAI(api_key=openai_api_key)
+        self.mcp_server_url = mcp_server_url
+        self.tools = []
+        self.tool_endpoints = {}
         
-        # Definer tilgjengelige verktøy for OpenAI
-        self.tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_weather_forecast",
-                    "description": "Hent værprognose for en destinasjon",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "location": {
-                                "type": "string",
-                                "description": "By eller lokasjon"
-                            },
-                            "days": {
-                                "type": "integer", 
-                                "description": "Antall dager (1-5)",
-                                "default": 5
-                            }
-                        },
-                        "required": ["location"]
+        # Last verktøy dynamisk fra MCP server
+        self.load_tools_from_mcp()
+        
+    def load_tools_from_mcp(self):
+        """Last verktøy fra MCP server og konverter til OpenAI format"""
+        try:
+            response = requests.get(f"{self.mcp_server_url}/tools")
+            tools_data = response.json()
+            
+            for tool in tools_data["tools"]:
+                # Lagre endpoint mapping
+                self.tool_endpoints[tool["name"]] = {
+                    "endpoint": tool["endpoint"], 
+                    "method": tool["method"]
+                }
+                
+                # Konverter til OpenAI function format
+                openai_tool = {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool["description"],
+                        "parameters": tool["inputSchema"]
                     }
                 }
-            },
-            {
-                "type": "function", 
-                "function": {
-                    "name": "get_travel_routes",
-                    "description": "Beregn reiserute mellom to steder",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin": {"type": "string"},
-                            "destination": {"type": "string"},
-                            "mode": {
-                                "type": "string",
-                                "enum": ["driving", "walking", "cycling"],
-                                "default": "driving"
-                            }
-                        },
-                        "required": ["origin", "destination"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "plan_trip", 
-                    "description": "Lag komplett reiseplan med vær og rute",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "origin": {"type": "string"},
-                            "destination": {"type": "string"}, 
-                            "travel_date": {"type": "string"},
-                            "mode": {"type": "string", "default": "driving"},
-                            "days": {"type": "integer", "default": 5}
-                        },
-                        "required": ["origin", "destination"]
-                    }
-                }
+                self.tools.append(openai_tool)
+                
+            print(f"Lastet {len(self.tools)} verktøy fra MCP server")
+            
+        except Exception as e:
+            print(f"Kunne ikke laste verktøy fra MCP server: {e}")
+            
+    def call_mcp_tool(self, tool_name, parameters):
+        """Kall MCP verktøy via HTTP"""
+        if tool_name not in self.tool_endpoints:
+            raise ValueError(f"Ukjent verktøy: {tool_name}")
+            
+        endpoint_info = self.tool_endpoints[tool_name] 
+        url = f"{self.mcp_server_url}{endpoint_info['endpoint']}"
+        method = endpoint_info["method"]
+        
+        try:
+            if method == "GET":
+                response = requests.get(url, params=parameters)
+            elif method == "POST":
+                response = requests.post(url, json=parameters)
+            elif method == "PUT":
+                response = requests.put(url, json=parameters)
+            elif method == "DELETE":
+                response = requests.delete(url, json=parameters)
+            else:
+                raise ValueError(f"Ukjent HTTP method: {method}")
+                
+            return response.json()
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    async def process_query(self, user_query):
+        """Prosesser brukerforespørsel med AI og dynamiske verktøy"""
+        try:
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Du er en reiseassistent som hjelper med værdata."},
+                    {"role": "user", "content": user_query}
+                ],
+                tools=self.tools,  # Dynamisk lastet fra MCP server
+                tool_choice="auto"
+            )
+            
+            message = response.choices[0].message
+            
+            # Sjekk om AI ønsker å bruke verktøy
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    function_name = tool_call.function.name
+                    arguments = json.loads(tool_call.function.arguments)
+                    
+                    # Kall MCP verktøy via HTTP
+                    result = self.call_mcp_tool(function_name, arguments)
+                    print(f"Verktøy {function_name} returnerte: {result}")
+                    
+            return message.content
+            
+        except Exception as e:
+            return f"Feil ved prosessering: {e}"
+
+# Eksempel bruk
+async def main():
+    agent = MCPTravelAgent(openai_api_key="your_key_here")
+    
+    # Test dynamisk tools loading
+    response = await agent.process_query("Hva er været i Oslo?")
+    print(response)
+
+# Kjør eksempel
+asyncio.run(main())
+```
+
+## Direkte HTTP API Integrasjon
+
+### Test MCP Tools Manifest
+
+```python
+import requests
+
+def test_mcp_server():
+    base_url = "http://localhost:8000"
+    
+    # Hent tools manifest
+    print("=== MCP Tools Manifest ===")
+    response = requests.get(f"{base_url}/tools")
+    tools = response.json()["tools"]
+    
+    for tool in tools:
+        print(f"Verktøy: {tool['name']}")
+        print(f"  Beskrivelse: {tool['description']}")
+        print(f"  Endpoint: {tool['method']} {tool['endpoint']}")
+        print(f"  Schema: {tool['inputSchema']}")
+        print()
+    
+    # Test alle verktøy
+    print("=== Test Alle Verktøy ===")
+    
+    # Test weather verktøy
+    weather_response = requests.post(f"{base_url}/weather", 
+        json={"location": "Oslo"})
+    print(f"Weather: {weather_response.json()}")
+    
+    # Test ping verktøy  
+    ping_response = requests.post(f"{base_url}/ping",
+        json={"message": "Hello MCP!"})
+    print(f"Ping: {ping_response.json()}")
+    
+    # Test status verktøy
+    status_response = requests.get(f"{base_url}/status")
+    print(f"Status: {status_response.json()}")
+
+if __name__ == "__main__":
+    test_mcp_server()
+```
             }
         ]
     

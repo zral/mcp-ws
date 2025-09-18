@@ -156,10 +156,14 @@ style: |
 
 ## Bruker spør: *"Hva er været i Oslo?"*
 
+**Oppstart (én gang):**
+0. **Agent** → **MCP Server**: `GET /tools` (hent tilgjengelige verktøy)
+
+**Per forespørsel:**
 1. **Web** → **Agent**: Brukerforespørsel
 2. **Agent** → **OpenAI**: "Bruker vil ha vær for Oslo"
 3. **OpenAI** → **Agent**: "Bruk get_weather_forecast verktøy"
-4. **Agent** → **MCP Server**: Verktøykall med parametere
+4. **Agent** → **MCP Server**: `POST /weather` med parametere
 5. **MCP Server** → **OpenWeather API**: Hent værdata
 6. **MCP Server** → **Agent**: Vær respons
 7. **Agent** → **OpenAI**: "Formater denne værdataen"
@@ -220,24 +224,32 @@ agent/
 # MCP Server - Kodegjennomgang
 
 ```python
-@app.post("/tools/get_weather_forecast")
-async def get_weather_forecast(request: WeatherRequest):
-    """Hent værvarsel for en lokasjon."""
-    try:
-        # 1. Konverter lokasjon til koordinater
-        coords = await geocode_location(request.location)
-        
-        # 2. Hent værdata fra OpenWeatherMap
-        weather_data = await fetch_weather_data(coords)
-        
-        # 3. Returner strukturert respons
-        return {
-            "success": True,
-            "location": request.location,
-            "forecast": weather_data
+# Tools endpoint - eksponerer tilgjengelige verktøy til agent
+@app.get("/tools")
+async def list_tools():
+    """List available tools according to MCP specification."""
+    tools = [
+        {
+            "name": "get_weather_forecast",
+            "description": "Hent værprognose for en destinasjon",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "Navn på by"}
+                },
+                "required": ["location"]
+            }
         }
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    ]
+    return {"tools": tools}
+
+# Værverktøy implementasjon
+@app.post("/weather")
+async def get_weather(request: WeatherRequest):
+    """Hent værvarsel for en lokasjon."""
+    coords = await geocode_location(request.location)
+    weather_data = await fetch_weather_data(coords)
+    return {"success": True, "data": weather_data}
 ```
 
 ---
@@ -247,23 +259,44 @@ async def get_weather_forecast(request: WeatherRequest):
 ```python
 # services/agent/app.py
 
-# Verktøydefinisjon for OpenAI
-self.tools = [{
-    "type": "function",
-    "function": {
-        "name": "get_weather_forecast",
-        "description": "Hent værvarsel for en lokasjon",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {"type": "string"},
-                "days": {"type": "integer", "default": 3}
-            },
-            "required": ["location"]
+# Tools hentes dynamisk fra MCP server ved oppstart
+async def load_tools_from_mcp_server(self):
+    """Hent tilgjengelige tools fra MCP server."""
+    response = await self.http_client.get(f"{self.mcp_server_url}/tools")
+    mcp_tools = response.json()
+    
+    # Konverter fra MCP format til OpenAI function calling format
+    for tool in mcp_tools.get("tools", []):
+        openai_tool = {
+            "type": "function",
+            "function": {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["inputSchema"]
+            }
         }
-    }
-}]
+        self.tools.append(openai_tool)
 ```
+
+---
+
+# 🎯 MCP Arkitektur
+
+## Dynamisk Tools Discovery
+- **Agent henter tools automatisk** fra MCP server ved oppstart
+- **Ingen hardkoding** av verktøydefinisjon i agent-kode
+- **MCP standard** for tools exchange
+
+## Enklere utvikling
+- **Kun endre MCP server** for å legge til nye verktøy
+- **Agent restarter automatisk** med nye tools
+- **Løs kobling** mellom komponenter
+
+## Skalerbarhet
+- **Flere MCP servere** kan eksponere forskjellige verktøy
+- **Plugin arkitektur** for nye funksjonaliteter
+
+https://modelcontextprotocol.io/specification/2025-06-18/server/tools
 
 ---
 
@@ -296,16 +329,19 @@ if response_message.tool_calls:
 
 # Labøvelse 1: Utforsk nåværende verktøy
 
-## La oss undersøke værverktøyet
+## La oss undersøke værverktøyet og den nye MCP arkitekturen
 
 ```bash
 # Start systemet
 docker-compose up -d
 
+# Test tools endpoint - se tilgjengelige verktøy
+curl -s "http://localhost:8000/tools" | python3 -m json.tool
+
 # Test MCP server direkte
-curl -X POST "http://localhost:8000/tools/get_weather_forecast" \
+curl -X POST "http://localhost:8000/weather" \
   -H "Content-Type: application/json" \
-  -d '{"location": "Oslo", "days": 3}'
+  -d '{"location": "Oslo"}'
 
 # Test via agent
 curl -X POST "http://localhost:8001/query" \
@@ -317,9 +353,9 @@ curl -X POST "http://localhost:8001/query" \
 
 # Labøvelse 2: Legg til nytt verktøy
 
-## La oss lage et "Tilfeldig Fakta" verktøy
+## La oss lage et "Tilfeldig Fakta" verktøy i MCP serveren
 
-### Steg 1: Legg til i MCP Server
+### Steg 1: Legg til faktum-endpoint i MCP Server
 
 ```python
 # I services/mcp-server/app.py
@@ -327,7 +363,7 @@ curl -X POST "http://localhost:8001/query" \
 class FactRequest(BaseModel):
     category: str = "general"
 
-@app.post("/tools/get_random_fact")
+@app.post("/fact")
 async def get_random_fact(request: FactRequest):
     """Få et tilfeldig interessant faktum."""
     facts = {
@@ -340,35 +376,68 @@ async def get_random_fact(request: FactRequest):
     import random
     fact = random.choice(facts.get(request.category, facts["general"]))
     
-    return {"success": True, "category": request.category, "fact": fact}
+    return MCPResponse(
+        success=True, 
+        data={"category": request.category, "fact": fact},
+        timestamp=datetime.now().isoformat()
+    )
 ```
 
 ---
 
-# Labøvelse 2: Registrer verktøy i agent
+# Labøvelse 2: Oppdater tools manifest
 
-### Steg 2: Legg til i Agentverktøy Array
+### Steg 2: Legg til i /tools endpoint
 
 ```python
-# I services/agent/app.py, legg til i self.tools:
+# I services/mcp-server/app.py, oppdater list_tools():
 
-{
-    "type": "function",
-    "function": {
-        "name": "get_random_fact",
-        "description": "Få et tilfeldig interessant faktum",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "category": {
-                    "type": "string",
-                    "description": "Faktakategori (general, space)",
-                    "default": "general"
+@app.get("/tools")
+async def list_tools():
+    tools = [
+        {
+            "name": "get_weather_forecast",
+            "description": "Hent værprognose for en destinasjon",
+            "inputSchema": { /* ... */ }
+        },
+        {
+            "name": "get_random_fact",
+            "description": "Få et tilfeldig interessant faktum",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "description": "Faktakategori (general, space)",
+                        "default": "general"
+                    }
                 }
             }
         }
-    }
-}
+    ]
+    return {"tools": tools}
+```
+
+---
+
+# Labøvelse 2: Oppdater agent mapping
+
+### Steg 3: Legg til endpoint mapping i call_mcp_tool
+
+```python
+# I services/agent/app.py, legg til i call_mcp_tool():
+
+async def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
+    if tool_name == "get_weather_forecast":
+        endpoint = "/weather"
+        payload = {"location": arguments["location"]}
+    elif tool_name == "get_random_fact":
+        endpoint = "/fact"
+        payload = {"category": arguments.get("category", "general")}
+    else:
+        raise ValueError(f"Ukjent verktøy: {tool_name}")
+    
+    # HTTP kall til MCP server...
 ```
 
 ---
@@ -376,9 +445,12 @@ async def get_random_fact(request: FactRequest):
 # Labøvelse 2: Test det nye verktøyet
 
 ```bash
-# Bygg på nytt og start
-docker-compose build travel-agent mcp-server
+# Bygg på nytt og restart (agent henter tools ved oppstart)
+docker-compose build mcp-server travel-agent
 docker-compose up -d
+
+# Test at tools er oppdatert
+curl -s "http://localhost:8000/tools" | python3 -m json.tool
 
 # Test det nye verktøyet
 curl -X POST "http://localhost:8001/query" \
@@ -386,8 +458,39 @@ curl -X POST "http://localhost:8001/query" \
   -d '{"query": "Fortell meg et interessant faktum om verdensrommet"}'
 ```
 
-## Forventet resultat
-Agenten skal kalle ditt nye verktøy og returnere et romfaktum!
+## Forventet resultat første gang
+**Agenten sier den kun kan hjelpe med vær!** 😮
+
+Dette er fordi system-prompten begrenser verktøyene. 
+
+---
+
+# Labøvelse 2.5: Oppdater system prompt
+
+## Utfordring: Få agenten til å bruke alle verktøy
+
+```python
+# I services/agent/app.py, linje ~212, endre system prompt fra:
+
+"Du har kun tilgang til ett verktøy:
+- get_weather_forecast: Hent værprognose for en destinasjon"
+
+# Til:
+
+# Bygg liste over tilgjengelige verktøy for system prompt
+available_tools = []
+for tool in self.tools:
+    tool_name = tool["function"]["name"]
+    tool_desc = tool["function"]["description"]
+    available_tools.append(f"- {tool_name}: {tool_desc}")
+
+tools_description = "\\n".join(available_tools)
+
+"Du har tilgang til følgende verktøy:
+{tools_description}"
+```
+
+### Test på nytt - nå skal alle verktøy fungere!
 
 ---
 
