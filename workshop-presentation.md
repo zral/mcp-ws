@@ -48,7 +48,7 @@ style: |
 ## AI Agenter med Model Context Protocol (MCP)
 
 **Lars Søraas**  
-*September 2025*
+*15 Oktober 2025*
 
 ---
 
@@ -179,8 +179,8 @@ style: |
 # Utviklingsmiljø for workshop
 
 ## 1. Logg inn på din Github konto
-## 2. Lag en *fork* av https://github.com/zral/mcp
-## 3. Kryss av **Copy the lab01-clean branch only**
+## 2. Lag en *fork* av https://github.com/zral/mcp-ws
+## 3. Kryss av **Copy the main branch only**
 ## 4. Velg **Code / Codespaces / Create Codespace on...**
 ## 5. Kopier **env.example** til **.env** i Codespace
 ## Du har nå et fiks ferdig utviklingsmiljø!
@@ -422,27 +422,7 @@ async def list_tools():
 
 # Labøvelse 2: Oppdater agent-mapping
 
-### Steg 3: Legg til endpoint mapping i call_mcp_tool
-
-```python
-# I services/agent/app.py, legg til i call_mcp_tool():
-
-async def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
-    if tool_name == "get_weather_forecast":
-        endpoint = "/weather"
-        payload = {"location": arguments["location"]}
-    elif tool_name == "get_random_fact":
-        endpoint = "/fact"
-        payload = {"category": arguments.get("category", "general")}
-    else:
-        raise ValueError(f"Ukjent verktøy: {tool_name}")
-    
-    # HTTP kall til MCP server...
-```
-
----
-
-# Labøvelse 2: Test det nye verktøyet
+### Steg 3: Test det nye verktøyet
 
 ```bash
 # Bygg på nytt og restart (agent henter tools ved oppstart)
@@ -458,37 +438,14 @@ curl -X POST "http://localhost:8001/query" \
   -d '{"query": "Fortell meg et interessant faktum om verdensrommet"}'
 ```
 
-## Forventet resultat første gang
-**Agenten sier den kun kan hjelpe med vær!** 😮
+---
 
-Dette er fordi system-prompten legger begrensninger på bruk av verktøy. 
+# Forventet resultat???
 
 ---
 
-# Labøvelse 2.5: Oppdater system prompt
+# Labøvelse 2.5: Få agenten til å bruke alle verktøy
 
-## Utfordring: Få agenten til å bruke alle verktøy
-
-```python
-# I services/agent/app.py, linje ~212, endre system prompt fra:
-
-"Du har kun tilgang til ett verktøy:
-- get_weather_forecast: Hent værprognose for en destinasjon"
-
-# Til:
-
-# Bygg liste over tilgjengelige verktøy for system prompt
-available_tools = []
-for tool in self.tools:
-    tool_name = tool["function"]["name"]
-    tool_desc = tool["function"]["description"]
-    available_tools.append(f"- {tool_name}: {tool_desc}")
-
-tools_description = "\\n".join(available_tools)
-
-"Du har tilgang til følgende verktøy:
-{tools_description}"
-```
 
 ### Test på nytt - nå skal alle verktøy fungere!
 
@@ -601,7 +558,7 @@ curl -X POST "http://localhost:8001/query" \
 ```
 
 ## 3. Webtesting
-Åpne http://localhost:3000 i nettleser
+Åpne http://localhost:8080 i nettleser
 
 ---
 

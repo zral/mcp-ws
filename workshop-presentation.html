@@ -82,7 +82,7 @@ ul, ol {
 <h1 id="%F0%9F%A4%96-ai-agent-workshop"><img class="emoji" draggable="false" alt="🤖" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" data-marp-twemoji=""/> AI Agent Workshop</h1>
 <h2 id="ai-agenter-med-model-context-protocol-mcp">AI Agenter med Model Context Protocol (MCP)</h2>
 <p><strong>Lars Søraas</strong><br />
-<em>September 2025</em></p>
+<em>15 Oktober 2025</em></p>
 <footer>Lars Søraas | September 2025</footer>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="2" data-paginate="true" data-background-color="#1e1e1e" data-color="#ffffff" data-header="🤖 AI Agent Workshop - Model Context Protocol" data-footer="Lars Søraas | September 2025" data-theme="default" data-style="section {
@@ -976,8 +976,8 @@ ul, ol {
 <header><img class="emoji" draggable="false" alt="🤖" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" data-marp-twemoji=""/> AI Agent Workshop - Model Context Protocol</header>
 <h1 id="utviklingsmilj%C3%B8-for-workshop">Utviklingsmiljø for workshop</h1>
 <h2 id="1-logg-inn-p%C3%A5-din-github-konto">1. Logg inn på din Github konto</h2>
-<h2 id="2-lag-en-fork-av-httpsgithubcomzralmcp">2. Lag en <em>fork</em> av <a href="https://github.com/zral/mcp">https://github.com/zral/mcp</a></h2>
-<h2 id="3-kryss-av-copy-the-lab01-clean-branch-only">3. Kryss av <strong>Copy the lab01-clean branch only</strong></h2>
+<h2 id="2-lag-en-fork-av-httpsgithubcomzralmcp-ws">2. Lag en <em>fork</em> av <a href="https://github.com/zral/mcp-ws">https://github.com/zral/mcp-ws</a></h2>
+<h2 id="3-kryss-av-copy-the-main-branch-only">3. Kryss av <strong>Copy the main branch only</strong></h2>
 <h2 id="4-velg-code--codespaces--create-codespace-on">4. Velg <strong>Code / Codespaces / Create Codespace on...</strong></h2>
 <h2 id="5-kopier-envexample-til-env-i-codespace">5. Kopier <strong>env.example</strong> til <strong>.env</strong> i Codespace</h2>
 <h2 id="du-har-n%C3%A5-et-fiks-ferdig-utviklingsmilj%C3%B8">Du har nå et fiks ferdig utviklingsmiljø!</h2>
@@ -2031,20 +2031,18 @@ ul, ol {
 ;color:#ffffff;background-color:#1e1e1e;background-image:none;" data-marpit-pagination-total="48">
 <header><img class="emoji" draggable="false" alt="🤖" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" data-marp-twemoji=""/> AI Agent Workshop - Model Context Protocol</header>
 <h1 id="lab%C3%B8velse-2-oppdater-agent-mapping">Labøvelse 2: Oppdater agent-mapping</h1>
-<h3 id="steg-3-legg-til-endpoint-mapping-i-call_mcp_tool">Steg 3: Legg til endpoint mapping i call_mcp_tool</h3>
-<pre is="marp-pre" data-auto-scaling="downscale-only"><code class="language-python"><span class="hljs-comment"># I services/agent/app.py, legg til i call_mcp_tool():</span>
+<h3 id="steg-3-test-det-nye-verkt%C3%B8yet">Steg 3: Test det nye verktøyet</h3>
+<pre is="marp-pre" data-auto-scaling="downscale-only"><code class="language-bash"><span class="hljs-comment"># Bygg på nytt og restart (agent henter tools ved oppstart)</span>
+docker-compose build mcp-server travel-agent
+docker-compose up -d
 
-<span class="hljs-keyword">async</span> <span class="hljs-keyword">def</span> <span class="hljs-title function_">call_mcp_tool</span>(<span class="hljs-params">self, tool_name: <span class="hljs-built_in">str</span>, arguments: <span class="hljs-type">Dict</span>[<span class="hljs-built_in">str</span>, <span class="hljs-type">Any</span>]</span>) -&gt; <span class="hljs-built_in">str</span>:
-    <span class="hljs-keyword">if</span> tool_name == <span class="hljs-string">&quot;get_weather_forecast&quot;</span>:
-        endpoint = <span class="hljs-string">&quot;/weather&quot;</span>
-        payload = {<span class="hljs-string">&quot;location&quot;</span>: arguments[<span class="hljs-string">&quot;location&quot;</span>]}
-    <span class="hljs-keyword">elif</span> tool_name == <span class="hljs-string">&quot;get_random_fact&quot;</span>:
-        endpoint = <span class="hljs-string">&quot;/fact&quot;</span>
-        payload = {<span class="hljs-string">&quot;category&quot;</span>: arguments.get(<span class="hljs-string">&quot;category&quot;</span>, <span class="hljs-string">&quot;general&quot;</span>)}
-    <span class="hljs-keyword">else</span>:
-        <span class="hljs-keyword">raise</span> ValueError(<span class="hljs-string">f&quot;Ukjent verktøy: <span class="hljs-subst">{tool_name}</span>&quot;</span>)
-    
-    <span class="hljs-comment"># HTTP kall til MCP server...</span>
+<span class="hljs-comment"># Test at tools er oppdatert</span>
+curl -s <span class="hljs-string">&quot;http://localhost:8000/tools&quot;</span> | python3 -m json.tool
+
+<span class="hljs-comment"># Test det nye verktøyet</span>
+curl -X POST <span class="hljs-string">&quot;http://localhost:8001/query&quot;</span> \
+  -H <span class="hljs-string">&quot;Content-Type: application/json&quot;</span> \
+  -d <span class="hljs-string">&#x27;{&quot;query&quot;: &quot;Fortell meg et interessant faktum om verdensrommet&quot;}&#x27;</span>
 </code></pre>
 <footer>Lars Søraas | September 2025</footer>
 </section>
@@ -2118,22 +2116,7 @@ ul, ol {
 }
 ;color:#ffffff;background-color:#1e1e1e;background-image:none;" data-marpit-pagination-total="48">
 <header><img class="emoji" draggable="false" alt="🤖" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" data-marp-twemoji=""/> AI Agent Workshop - Model Context Protocol</header>
-<h1 id="lab%C3%B8velse-2-test-det-nye-verkt%C3%B8yet">Labøvelse 2: Test det nye verktøyet</h1>
-<pre is="marp-pre" data-auto-scaling="downscale-only"><code class="language-bash"><span class="hljs-comment"># Bygg på nytt og restart (agent henter tools ved oppstart)</span>
-docker-compose build mcp-server travel-agent
-docker-compose up -d
-
-<span class="hljs-comment"># Test at tools er oppdatert</span>
-curl -s <span class="hljs-string">&quot;http://localhost:8000/tools&quot;</span> | python3 -m json.tool
-
-<span class="hljs-comment"># Test det nye verktøyet</span>
-curl -X POST <span class="hljs-string">&quot;http://localhost:8001/query&quot;</span> \
-  -H <span class="hljs-string">&quot;Content-Type: application/json&quot;</span> \
-  -d <span class="hljs-string">&#x27;{&quot;query&quot;: &quot;Fortell meg et interessant faktum om verdensrommet&quot;}&#x27;</span>
-</code></pre>
-<h2 id="forventet-resultat-f%C3%B8rste-gang">Forventet resultat første gang</h2>
-<p><strong>Agenten sier den kun kan hjelpe med vær!</strong> <img class="emoji" draggable="false" alt="😮" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f62e.svg" data-marp-twemoji=""/></p>
-<p>Dette er fordi system-prompten legger begrensninger på bruk av verktøy.</p>
+<h1 id="forventet-resultat">Forventet resultat???</h1>
 <footer>Lars Søraas | September 2025</footer>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="26" data-paginate="true" data-background-color="#1e1e1e" data-color="#ffffff" data-header="🤖 AI Agent Workshop - Model Context Protocol" data-footer="Lars Søraas | September 2025" data-theme="default" data-style="section {
@@ -2206,27 +2189,7 @@ ul, ol {
 }
 ;color:#ffffff;background-color:#1e1e1e;background-image:none;" data-marpit-pagination-total="48">
 <header><img class="emoji" draggable="false" alt="🤖" src="https://cdn.jsdelivr.net/gh/jdecked/twemoji@16.0.1/assets/svg/1f916.svg" data-marp-twemoji=""/> AI Agent Workshop - Model Context Protocol</header>
-<h1 id="lab%C3%B8velse-25-oppdater-system-prompt">Labøvelse 2.5: Oppdater system prompt</h1>
-<h2 id="utfordring-f%C3%A5-agenten-til-%C3%A5-bruke-alle-verkt%C3%B8y">Utfordring: Få agenten til å bruke alle verktøy</h2>
-<pre is="marp-pre" data-auto-scaling="downscale-only"><code class="language-python"><span class="hljs-comment"># I services/agent/app.py, linje ~212, endre system prompt fra:</span>
-
-<span class="hljs-string">&quot;Du har kun tilgang til ett verktøy:
-- get_weather_forecast: Hent værprognose for en destinasjon&quot;</span>
-
-<span class="hljs-comment"># Til:</span>
-
-<span class="hljs-comment"># Bygg liste over tilgjengelige verktøy for system prompt</span>
-available_tools = []
-<span class="hljs-keyword">for</span> tool <span class="hljs-keyword">in</span> <span class="hljs-variable language_">self</span>.tools:
-    tool_name = tool[<span class="hljs-string">&quot;function&quot;</span>][<span class="hljs-string">&quot;name&quot;</span>]
-    tool_desc = tool[<span class="hljs-string">&quot;function&quot;</span>][<span class="hljs-string">&quot;description&quot;</span>]
-    available_tools.append(<span class="hljs-string">f&quot;- <span class="hljs-subst">{tool_name}</span>: <span class="hljs-subst">{tool_desc}</span>&quot;</span>)
-
-tools_description = <span class="hljs-string">&quot;\\n&quot;</span>.join(available_tools)
-
-<span class="hljs-string">&quot;Du har tilgang til følgende verktøy:
-{tools_description}&quot;</span>
-</code></pre>
+<h1 id="lab%C3%B8velse-25-f%C3%A5-agenten-til-%C3%A5-bruke-alle-verkt%C3%B8y">Labøvelse 2.5: Få agenten til å bruke alle verktøy</h1>
 <h3 id="test-p%C3%A5-nytt---n%C3%A5-skal-alle-verkt%C3%B8y-fungere">Test på nytt - nå skal alle verktøy fungere!</h3>
 <footer>Lars Søraas | September 2025</footer>
 </section>
@@ -2666,7 +2629,7 @@ curl -X POST <span class="hljs-string">&quot;http://localhost:8001/query&quot;</
   -d <span class="hljs-string">&#x27;{&quot;query&quot;: &quot;Hva er været i dag?&quot;}&#x27;</span>
 </code></pre>
 <h2 id="3-webtesting">3. Webtesting</h2>
-<p>Åpne <a href="http://localhost:3000">http://localhost:3000</a> i nettleser</p>
+<p>Åpne <a href="http://localhost:8080">http://localhost:8080</a> i nettleser</p>
 <footer>Lars Søraas | September 2025</footer>
 </section>
 </foreignObject></svg><svg data-marpit-svg="" viewBox="0 0 1280 720"><foreignObject width="1280" height="720"><section id="32" data-paginate="true" data-background-color="#1e1e1e" data-color="#ffffff" data-header="🤖 AI Agent Workshop - Model Context Protocol" data-footer="Lars Søraas | September 2025" data-theme="default" data-style="section {
