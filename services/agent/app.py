@@ -60,6 +60,9 @@ class MicroserviceAgent:
         """
         Hent tilgjengelige tools fra MCP server dynamisk.
         Konverterer fra MCP format til OpenAI function calling format og lagrer endpoint info.
+        
+        VIKTIG: Endpoint mappings hentes dynamisk fra MCP server - ingen hardkoding!
+        Hver tool kan spesifisere sin egen endpoint og HTTP method.
         """
         try:
             logger.info(f"Henter tools fra MCP server: {self.mcp_server_url}")
@@ -103,28 +106,23 @@ class MicroserviceAgent:
     def _map_tool_to_endpoint(self, tool_name: str) -> str:
         """
         Map tool name to MCP server endpoint based on convention.
-        Dette unngår hardkoding av endpoints i agent-koden.
+        
+        WARNING: This is a fallback mechanism. The MCP server should 
+        provide explicit endpoint mappings via the tools endpoint.
+        
+        This method is only used when self.tool_endpoints doesn't 
+        contain an explicit mapping for the tool.
         """
-        # Konvensjon: get_weather_forecast -> /weather
-        # Konvensjon: get_random_fact -> /fact
-        # Konvensjon: get_news -> /news
-        tool_to_endpoint = {
-            "get_weather_forecast": "/weather",
-            "get_random_fact": "/fact",
-            "get_news": "/news"
-        }
+        logger.warning(f"Using fallback endpoint mapping for tool: {tool_name}")
+        logger.warning("Consider updating MCP server to provide explicit endpoint mappings")
         
-        # Standard fallback: remove 'get_' prefix if present
-        if tool_name in tool_to_endpoint:
-            return tool_to_endpoint[tool_name]
-        
-        # Fallback: derive endpoint from tool name
+        # Fallback: derive endpoint from tool name using REST conventions
         if tool_name.startswith("get_"):
             endpoint_name = tool_name[4:]  # Remove 'get_' prefix
-            return f"/{endpoint_name}"
+            return f"/{endpoint_name.replace('_', '-')}"  # Convert underscores to hyphens for REST convention
         
-        # Last resort: use tool name as-is
-        return f"/{tool_name}"
+        # Convert underscores to hyphens for REST convention
+        return f"/{tool_name.replace('_', '-')}"
     
     async def call_mcp_tool(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """
@@ -134,17 +132,17 @@ class MicroserviceAgent:
         try:
             logger.info(f"Kaller MCP server: {tool_name} med args: {arguments}")
             
-            # Først: bruk eksplisitt endpoint info fra tools manifest
+            # PRIORITET 1: Bruk eksplisitt endpoint info fra MCP server tools manifest
             if tool_name in self.tool_endpoints:
                 endpoint_info = self.tool_endpoints[tool_name]
                 endpoint = endpoint_info["endpoint"]
                 method = endpoint_info.get("method", "POST")
-                logger.info(f"Bruker eksplisitt endpoint mapping: {tool_name} -> {method} {endpoint}")
+                logger.info(f"Bruker dynamisk endpoint mapping fra MCP server: {tool_name} -> {method} {endpoint}")
             else:
-                # Fallback: bruk konvensjonbasert mapping
+                # PRIORITET 2: Fallback til konvensjonbasert mapping (kun hvis MCP server ikke gir endpoint info)
                 endpoint = self._map_tool_to_endpoint(tool_name)
                 method = "POST"
-                logger.warning(f"Ingen eksplisitt endpoint for {tool_name}, bruker fallback: {endpoint}")
+                logger.warning(f"Ingen eksplisitt endpoint fra MCP server for {tool_name}, bruker fallback: {endpoint}")
             
             # Gjør HTTP kall til MCP server
             url = f"{self.mcp_server_url}{endpoint}"
