@@ -73,19 +73,6 @@ services:
       retries: 3
       start_period: 15s
 
-  # Open WebUI - Web-based UI for the agent
-  openwebui:
-    image: ghcr.io/open-webui/open-webui:latest
-    container_name: travel-weather-openwebui
-    environment:
-      - PORT=8002
-    ports:
-      - "8002:8002"  # Open WebUI port
-    volumes:
-      - openwebui:/app/backend/data  # Persistent storage for Open WebUI data
-    networks:
-      - travel-weather-network
-    restart: unless-stopped
 
 networks:
   travel-weather-network:
@@ -97,5 +84,3 @@ volumes:
     driver: local
   agent-data:
     driver: local  # Persistent storage for conversation database
-  openwebui:
-    driver: local  # Persistent storage for Open WebUI data
