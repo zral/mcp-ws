@@ -107,7 +107,7 @@ style: |
 ## For AI agenter
 - 🌐 **Tilgang til eksterne APIer**
 - 💾 **Sanntids data-henting**
-- ⚡ **Handlingsutførelse muligheter**
+- ⚡ **Utføre handlinger**
 - 🧠 **Forbedret resonnering med kontekst**
 
 ---
@@ -216,7 +216,6 @@ agent/
 │   │   ├── app.py            # ⭐ Agent implementasjon
 │   │   └── conversation_memory.py
 │   └── web/                   # 🌐 Frontend
-└── logs/                      # 📝 Delt logging
 ```
 
 ---
@@ -329,7 +328,7 @@ if response_message.tool_calls:
 
 # Labøvelse 1: Utforsk nåværende verktøy
 
-## La oss undersøke værverktøyet og den nye MCP arkitekturen
+## La oss undersøke værverktøyet og MCP arkitekturen
 
 ```bash
 # Start systemet
@@ -645,7 +644,7 @@ def get_api_key(service: str) -> str:
 - **Caching** for ofte brukte verktøy-resultater
 
 ## Overvåkning
-- **Helse sjekker** og oppetid overvåkning
+- **Helsesjekk** og oppetid overvåkning
 - **Logging aggregering** (ELK stack)
 - **Metrics innsamling** (Prometheus/Grafana)
 - **Feilsporing** (Sentry)
@@ -663,7 +662,7 @@ def get_api_key(service: str) -> str:
 ## Legg til nye funksjoner
 
 ### 🧠 **Minne**
-- Vektor databaser for semantisk søk
+- Vektordatabaser for semantisk søk
 - Kunnskaps grafer for relasjoner
 - Langsiktig læring og tilpasning
 
@@ -737,12 +736,12 @@ Lag en reiseplanlegging arbeidsflyt:
 3. Sjekk kalender tilgjengelighet
 4. Send e-post sammendrag
 
-**Krever:** Flere API integrasjoner + arbeidsflyt logikk
+**Krever:** Flere API integrasjoner + logikk for arbeidsflyt
 
 ---
 
 <!-- _class: lead -->
-# 🎓 Viktige Lærdommer
+# 🎓 Læringspunkter
 
 ---
 
