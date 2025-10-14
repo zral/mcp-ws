@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MCP API Server - LAB01 VERSION
+MCP API Server - LAB02 VERSION
 
 Forenklet HTTP API med kun værfunksjonalitet for workshop.
 Deltagerne kan utvide denne med egne tools.
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # FastAPI app
 app = FastAPI(
-    title="MCP API Server - Lab01",
+    title="MCP API Server - Lab02",
     description="Forenklet HTTP API for workshop med kun værfunksjonalitet",
     version="1.0.0"
 )
@@ -212,32 +212,6 @@ async def list_tools():
             },
             "endpoint": "/weather",
             "method": "POST"
-        },
-        {
-            "name": "get_ping",
-            "description": "Test verktøy som returnerer en enkel ping respons",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "message": {
-                        "type": "string",
-                        "description": "Melding som skal echoes tilbake",
-                        "default": "ping"
-                    }
-                }
-            },
-            "endpoint": "/ping",
-            "method": "POST"
-        },
-        {
-            "name": "get_server_status",
-            "description": "Hent status informasjon om MCP serveren",
-            "inputSchema": {
-                "type": "object",
-                "properties": {}
-            },
-            "endpoint": "/status",
-            "method": "GET"
         }
     ]
     
@@ -245,36 +219,6 @@ async def list_tools():
         "tools": tools
     }
 
-class PingRequest(BaseModel):
-    message: str = "ping"
-
-@app.get("/status")
-async def get_server_status():
-    """Hent status informasjon om MCP serveren."""
-    return {
-        "success": True,
-        "data": {
-            "server": "MCP API Server Lab01",
-            "version": "1.0.0",
-            "status": "running",
-            "timestamp": datetime.now().isoformat(),
-            "available_tools": len([tool for tool in [
-                {"name": "get_weather_forecast"},
-                {"name": "get_ping"},
-                {"name": "get_server_status"}
-            ]])
-        },
-        "timestamp": datetime.now().isoformat()
-    }
-
-@app.post("/ping", response_model=MCPResponse)
-async def ping(request: PingRequest):
-    """Test endpoint som returnerer en enkel ping respons."""
-    return MCPResponse(
-        success=True,
-        data={"message": f"pong: {request.message}", "timestamp": datetime.now().isoformat()},
-        timestamp=datetime.now().isoformat()
-    )
 
 @app.post("/weather", response_model=MCPResponse)
 async def get_weather(request: WeatherRequest):
