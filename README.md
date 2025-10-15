@@ -1,4 +1,4 @@
-# MCP Travel Weather Server - LAB01
+# MCP Travel Weather Server - LAB02
 
 ## Dokumentasjon
 
@@ -12,14 +12,14 @@
 
 ## Oversikt
 
-**MCP Travel Weather Server** er en forenklet implementasjon for workshop LAB01. Dette er en **læringsorientert versjon** som demonstrerer Model Context Protocol (MCP) grunnleggende konsepter med fokus på værdata.
+**MCP Travel Weather Server** er en implementasjon for workshop LAB02. Dette er en **læringsorientert versjon** som demonstrerer Model Context Protocol (MCP) grunnleggende konsepter med fokus på værdata og reiseplanlegging.
 
 **Arkitektur**: Systemet består av tre hovedkomponenter:
 - **Web Service**: Frontend brukergrensesnitt
 - **AI Agent**: OpenAI-basert agent som orkestrerer forespørsler
 - **MCP Server**: HTTP API med værfunksjonalitet
 
-## Workshop Arkitektur (LAB01)
+## Workshop Arkitektur (LAB02)
 
 ### Forenklet tjenestearkitektur
 ```
@@ -38,8 +38,6 @@
 **HTTP API med dynamisk tools manifest** - Port 8000
 - `GET /tools` - MCP tools manifest (følger MCP spesifikasjon)
 - `POST /weather` - Værprognose for destinasjoner
-- `POST /ping` - Ping test verktøy
-- `GET /status` - Server status verktøy
 - `GET /health` - Helsesjekk
 
 **MCP Tools Manifest:**
@@ -72,7 +70,7 @@ Serveren eksponerer tilgjengelige verktøy via `/tools` endepunkt i henhold til 
 
 ## Workshop Læringsmål
 
-Denne LAB01-versjonen er designet for å lære:
+Denne LAB02-versjonen er designet for å lære:
 - **MCP Protocol**: Implementering av Model Context Protocol med dynamisk tools discovery
 - **HTTP API**: REST API arkitektur med intelligent endpoint mapping
 - **Tools Integration**: Dynamisk kobling av AI agent med MCP server verktøy
@@ -111,7 +109,7 @@ docker-compose ps
 
 ### Miljøvariabler
 ```bash
-# Kreves for LAB01
+# Kreves for LAB02
 OPENAI_API_KEY=your_openai_api_key_here
 OPENWEATHER_API_KEY=your_openweather_api_key_here  
 
@@ -119,7 +117,7 @@ OPENWEATHER_API_KEY=your_openweather_api_key_here
 MCP_SERVER_URL=http://mcp-server:8000
 ```
 
-## Funksjoner (LAB01)
+## Funksjoner (LAB02)
 
 ### Dynamisk Tools Discovery
 - MCP server eksponerer tilgjengelige verktøy via `/tools` endpoint
@@ -134,8 +132,6 @@ MCP_SERVER_URL=http://mcp-server:8000
 
 ### MCP Verktøy
 - **get_weather_forecast**: Hent værprognose for destinasjoner
-- **ping**: Test verktøy for tilkoblingskontroll
-- **get_status**: Server status informasjon
 - Alle verktøy følger MCP spesifikasjon
 
 ### Persistent Hukommelse
@@ -150,7 +146,7 @@ MCP_SERVER_URL=http://mcp-server:8000
 
 ## MCP Arkitektur
 
-Workshop LAB01 demonstrerer MCP (Model Context Protocol) arkitektur med dynamisk tools discovery:
+Workshop LAB02 demonstrerer MCP (Model Context Protocol) arkitektur med dynamisk tools discovery:
 
 ```
 Web Service → AI Agent ←→ MCP Server → External APIs
@@ -260,7 +256,7 @@ docker-compose restart mcp-server
 docker-compose logs -f travel-agent
 ```
 
-## API Endpoints (LAB01)
+## API Endpoints (LAB02)
 
 ### MCP Tools Discovery
 - **GET /tools**: Hent MCP tools manifest med alle tilgjengelige verktøy
@@ -272,16 +268,6 @@ docker-compose logs -f travel-agent
 - **location**: Stedsnavn (f.eks. "Oslo, Norway")
 - **Endpoint**: POST /weather
 - **Returner**: Værprognose med temperatur, vind, fuktighet og beskrivelse
-
-#### ping
-- **message**: Melding å sende til ping verktøy
-- **Endpoint**: POST /ping
-- **Returner**: Bekreftelses-melding
-
-#### get_status
-- **Ingen parametere kreves**
-- **Endpoint**: GET /status
-- **Returner**: Server status informasjon
 
 ### Eksempel API kall
 ```bash
@@ -336,7 +322,7 @@ docker-compose logs -f
 
 ## Workshop Utvidelser
 
-LAB01 er designet for utvidelse. Deltagere kan legge til:
+LAB02 er designet for utvidelse. Deltagere kan legge til:
 
 ### Nye MCP verktøy
 1. Definer en ny HTTP endpoint i `services/mcp-server/app.py`
@@ -366,16 +352,10 @@ curl http://localhost:8080/health
 # Test MCP tools manifest
 curl http://localhost:8000/tools
 
-# Test alle MCP verktøy
+# Test MCP verktøy
 curl -X POST http://localhost:8000/weather \
   -H "Content-Type: application/json" \
   -d '{"location": "Oslo, Norway"}'
-
-curl -X POST http://localhost:8000/ping \
-  -H "Content-Type: application/json" \
-  -d '{"message": "test"}'
-
-curl http://localhost:8000/status
 ```
 
 ## Lisens
